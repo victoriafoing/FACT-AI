@@ -157,6 +157,10 @@ class AdversarialDebiasing:
 
                 self._adversary_model(pred_logits)
 
+                # TODO: Calculate the loss
+
+                # TODO: Optimize the model
+
 
                 if self.debias and i % 200 == 0:
                     print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (epoch, i, pred_labels_loss_value, pred_protected_attributes_loss_vale))

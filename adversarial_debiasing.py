@@ -1,5 +1,7 @@
 import numpy as np
 import torch
+from torch import nn
+from torch.nn import functional as F
 
 class AdversarialDebiasing:
     """Adversarial debiasing is an in-processing technique that learns a
@@ -22,7 +24,8 @@ class AdversarialDebiasing:
                  num_epochs=50,
                  batch_size=128,
                  classifier_num_hidden_units=200,
-                 debias=True):
+                 debias=True,
+                 word_embedding_dim=300):
         """
         Args:
             unprivileged_groups (tuple): Representation for unprivileged groups
@@ -54,6 +57,7 @@ class AdversarialDebiasing:
         self.batch_size = batch_size
         self.classifier_num_hidden_units = classifier_num_hidden_units
         self.debias = debias
+        self.word_embedding_dim = word_embedding_dim
 
         self.features_dim = None
         self.features_ph = None
@@ -61,40 +65,31 @@ class AdversarialDebiasing:
         self.true_labels_ph = None
         self.pred_labels = None
 
-    def _classifier_model(self, features, features_dim, keep_prob):
+        self.W1 = torch.Tensor(self.features_dim, 1)
+        self.W1 = nn.Parameter(nn.init.xavier_uniform_(self.W1))
+
+        self.W2 = torch.Tensor(self.features_dim, 1)
+        self.W2 = nn.Parameter(nn.init.xavier_uniform_(self.W2))
+
+    def _classifier_model(self, features):
         """Compute the classifier predictions for the outcome variable.
         """
-        with tf.variable_scope("classifier_model"):
-            W1 = tf.get_variable('W1', [features_dim, self.classifier_num_hidden_units],
-                                 initializer=tf.contrib.layers.xavier_initializer())
-            b1 = tf.Variable(tf.zeros(shape=[self.classifier_num_hidden_units]), name='b1')
+        x1 = features[:, 0:self.word_embedding_dim]
+        x2 = features[:, self.word_embedding_dim:self.word_embedding_dim * 2]
+        x3 = features[:, self.word_embedding_dim * 2:self.word_embedding_dim * 3]
 
-            h1 = tf.nn.relu(tf.matmul(features, W1) + b1)
-            h1 = tf.nn.dropout(h1, keep_prob=keep_prob)
-
-            W2 = tf.get_variable('W2', [self.classifier_num_hidden_units, 1],
-                                 initializer=tf.contrib.layers.xavier_initializer())
-            b2 = tf.Variable(tf.zeros(shape=[1]), name='b2')
-
-            pred_logit = tf.matmul(h1, W2) + b2
-            pred_label = tf.sigmoid(pred_logit)
+        v = x1 + x2 - x3
+        pred = F.linear(v, torch.dot(self.W1,self.W1.T))
+        pred_logit = v - pred
+        pred_label = F.softmax(pred_logit)
 
         return pred_label, pred_logit
 
-    def _adversary_model(self, pred_logits, true_labels):
+    def _adversary_model(self, pred_logits):
         """Compute the adversary predictions for the protected attribute.
         """
-        with tf.variable_scope("adversary_model"):
-            c = tf.get_variable('c', initializer=tf.constant(1.0))
-            s = tf.sigmoid((1 + tf.abs(c)) * pred_logits)
-
-            W2 = tf.get_variable('W2', [3, 1],
-                                 initializer=tf.contrib.layers.xavier_initializer())
-            b2 = tf.Variable(tf.zeros(shape=[1]), name='b2')
-
-            pred_protected_attribute_logit = tf.matmul(tf.concat([s, s * true_labels, s * (1.0 - true_labels)], axis=1),
-                                                       W2) + b2
-            pred_protected_attribute_label = tf.sigmoid(pred_protected_attribute_logit)
+        pred_protected_attribute_logit = F.linear(pred_logits, self.W2.T)
+        pred_protected_attribute_label = F.sigmoid(pred_protected_attribute_logit)
 
         return pred_protected_attribute_label, pred_protected_attribute_logit
 

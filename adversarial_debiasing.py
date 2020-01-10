@@ -1,5 +1,5 @@
 import numpy as np
-
+import torch
 
 class AdversarialDebiasing:
     """Adversarial debiasing is an in-processing technique that learns a
@@ -110,93 +110,135 @@ class AdversarialDebiasing:
             np.random.seed(self.seed)
 
         # Map the dataset labels to 0 and 1.
-        temp_labels = dataset.labels.copy()
+        # temp_labels = dataset.labels.copy()
+        # temp_labels[(dataset.labels == dataset.favorable_label).ravel(),0] = 1.0
+        # temp_labels[(dataset.labels == dataset.unfavorable_label).ravel(),0] = 0.0
 
-        temp_labels[(dataset.labels == dataset.favorable_label).ravel(),0] = 1.0
-        temp_labels[(dataset.labels == dataset.unfavorable_label).ravel(),0] = 0.0
+        # with tf.variable_scope(self.scope_name):
+        # num_train_samples, self.features_dim = np.shape(dataset.features)
 
-        with tf.variable_scope(self.scope_name):
-            num_train_samples, self.features_dim = np.shape(dataset.features)
+        # Setup placeholders
+        # self.features_ph = tf.placeholder(tf.float32, shape=[None, self.features_dim])
+        # self.protected_attributes_ph = tf.placeholder(tf.float32, shape=[None,1])
+        # self.true_labels_ph = tf.placeholder(tf.float32, shape=[None,1])
+        # self.keep_prob = tf.placeholder(tf.float32)
 
-            # Setup placeholders
-            self.features_ph = tf.placeholder(tf.float32, shape=[None, self.features_dim])
-            self.protected_attributes_ph = tf.placeholder(tf.float32, shape=[None,1])
-            self.true_labels_ph = tf.placeholder(tf.float32, shape=[None,1])
-            self.keep_prob = tf.placeholder(tf.float32)
+        # Obtain classifier predictions and classifier loss
+        num_train_samples = len(dataset)
 
-            # Obtain classifier predictions and classifier loss
-            self.pred_labels, pred_logits = self._classifier_model(self.features_ph, self.features_dim, self.keep_prob)
-            pred_labels_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.true_labels_ph, logits=pred_logits))
+        for epoch in range(self.num_epochs):
+            # All shuffled ids
+            shuffled_ids = np.random.choice(num_train_samples, num_train_samples)
 
-            if self.debias:
-                # Obtain adversary predictions and adversary loss
-                pred_protected_attributes_labels, pred_protected_attributes_logits = self._adversary_model(pred_logits, self.true_labels_ph)
-                pred_protected_attributes_loss = tf.reduce_mean(
-                    tf.nn.sigmoid_cross_entropy_with_logits(labels=self.protected_attributes_ph, logits=pred_protected_attributes_logits))
+            for i in range(num_train_samples // self.batch_size):
+                batch_ids = shuffled_ids[self.batch_size*i: self.batch_size*(i+1)]
 
-            # Setup optimizers with learning rates
-            global_step = tf.Variable(0, trainable=False)
-            starter_learning_rate = 0.001
-            learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                       1000, 0.96, staircase=True)
-            classifier_opt = tf.train.AdamOptimizer(learning_rate)
-            if self.debias:
-                adversary_opt = tf.train.AdamOptimizer(learning_rate)
+                data_points = dataset[batch_ids]
 
-            classifier_vars = [var for var in tf.trainable_variables() if 'classifier_model' in var.name]
-            if self.debias:
-                adversary_vars = [var for var in tf.trainable_variables() if 'adversary_model' in var.name]
-                # Update classifier parameters
-                adversary_grads = {var: grad for (grad, var) in adversary_opt.compute_gradients(pred_protected_attributes_loss,
-                                                                                      var_list=classifier_vars)}
-            normalize = lambda x: x / (tf.norm(x) + np.finfo(np.float32).tiny)
+                # Batch of features
+                # batch_features: N x (WordEmbeddingDim * 3)
+                batch_features = torch.concat((x.features for x in data_points))
 
-            classifier_grads = []
-            for (grad,var) in classifier_opt.compute_gradients(pred_labels_loss, var_list=classifier_vars):
-                if self.debias:
-                    unit_adversary_grad = normalize(adversary_grads[var])
-                    grad -= tf.reduce_sum(grad * unit_adversary_grad) * unit_adversary_grad
-                    grad -= self.adversary_loss_weight * adversary_grads[var]
-                classifier_grads.append((grad, var))
-            classifier_minimizer = classifier_opt.apply_gradients(classifier_grads, global_step=global_step)
+                # One-hot batch represetnation of a batch of labels
+                # batch_labels: N x VocabularyDim
+                batch_labels = torch.concat((x.y for x in data_points))
 
-            if self.debias:
-                # Update adversary parameters
-                adversary_minimizer = adversary_opt.minimize(pred_protected_attributes_loss, var_list=adversary_vars, global_step=global_step)
+                # Batch of protected attributes
+                # batch_protected_attributes: N x 1 (?)
+                batch_protected_attributes = torch.concat((x.protected_attribute for x in data_points))
 
-            self.sess.run(tf.global_variables_initializer())
-            self.sess.run(tf.local_variables_initializer())
+                pred_labels_loss_value = None
+                pred_protected_attributes_loss_vale = None
 
-            # Begin training
-            for epoch in range(self.num_epochs):
-                shuffled_ids = np.random.choice(num_train_samples, num_train_samples)
-                for i in range(num_train_samples//self.batch_size):
-                    batch_ids = shuffled_ids[self.batch_size*i: self.batch_size*(i+1)]
-                    batch_features = dataset.features[batch_ids]
-                    batch_labels = np.reshape(temp_labels[batch_ids], [-1,1])
-                    batch_protected_attributes = np.reshape(dataset.protected_attributes[batch_ids][:,
-                                                 dataset.protected_attribute_names.index(self.protected_attribute_name)], [-1,1])
+                # TODO: RUN the classifier
+                pred_labels, pred_logits = self._classifier_model(batch_features)
 
-                    batch_feed_dict = {self.features_ph: batch_features,
-                                       self.true_labels_ph: batch_labels,
-                                       self.protected_attributes_ph: batch_protected_attributes,
-                                       self.keep_prob: 0.8}
-                    if self.debias:
-                        _, _, pred_labels_loss_value, pred_protected_attributes_loss_vale = self.sess.run([classifier_minimizer,
-                                       adversary_minimizer,
-                                       pred_labels_loss,
-                                       pred_protected_attributes_loss], feed_dict=batch_feed_dict)
-                        if i % 200 == 0:
-                            print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (epoch, i, pred_labels_loss_value,
-                                                                                     pred_protected_attributes_loss_vale))
-                    else:
-                        _, pred_labels_loss_value = self.sess.run(
-                            [classifier_minimizer,
-                             pred_labels_loss], feed_dict=batch_feed_dict)
-                        if i % 200 == 0:
-                            print("epoch %d; iter: %d; batch classifier loss: %f" % (
-                            epoch, i, pred_labels_loss_value))
+                # TODO: Run the adversary
+
+                self._adversary_model(pred_logits)
+
+
+                if self.debias and i % 200 == 0:
+                    print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (epoch, i, pred_labels_loss_value, pred_protected_attributes_loss_vale))
+                elif i % 200 == 0:
+                    print("epoch %d; iter: %d; batch classifier loss: %f" % (
+                        epoch, i, pred_labels_loss_value))
+
+
         return self
+
+        # self.pred_labels, pred_logits = self._classifier_model(self.features_ph, self.features_dim, self.keep_prob)
+        # pred_labels_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(labels=self.true_labels_ph, logits=pred_logits))
+        #
+        # if self.debias:
+        #     # Obtain adversary predictions and adversary loss
+        #     pred_protected_attributes_labels, pred_protected_attributes_logits = self._adversary_model(pred_logits, self.true_labels_ph)
+        #     pred_protected_attributes_loss = tf.reduce_mean(
+        #         tf.nn.sigmoid_cross_entropy_with_logits(labels=self.protected_attributes_ph, logits=pred_protected_attributes_logits))
+        #
+        # # Setup optimizers with learning rates
+        # global_step = tf.Variable(0, trainable=False)
+        # starter_learning_rate = 0.001
+        # learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+        #                                            1000, 0.96, staircase=True)
+        # classifier_opt = tf.train.AdamOptimizer(learning_rate)
+        # if self.debias:
+        #     adversary_opt = tf.train.AdamOptimizer(learning_rate)
+        #
+        # classifier_vars = [var for var in tf.trainable_variables() if 'classifier_model' in var.name]
+        # if self.debias:
+        #     adversary_vars = [var for var in tf.trainable_variables() if 'adversary_model' in var.name]
+        #     # Update classifier parameters
+        #     adversary_grads = {var: grad for (grad, var) in adversary_opt.compute_gradients(pred_protected_attributes_loss,
+        #                                                                           var_list=classifier_vars)}
+        # normalize = lambda x: x / (tf.norm(x) + np.finfo(np.float32).tiny)
+        #
+        # classifier_grads = []
+        # for (grad,var) in classifier_opt.compute_gradients(pred_labels_loss, var_list=classifier_vars):
+        #     if self.debias:
+        #         unit_adversary_grad = normalize(adversary_grads[var])
+        #         grad -= tf.reduce_sum(grad * unit_adversary_grad) * unit_adversary_grad
+        #         grad -= self.adversary_loss_weight * adversary_grads[var]
+        #     classifier_grads.append((grad, var))
+        # classifier_minimizer = classifier_opt.apply_gradients(classifier_grads, global_step=global_step)
+        #
+        # if self.debias:
+        #     # Update adversary parameters
+        #     adversary_minimizer = adversary_opt.minimize(pred_protected_attributes_loss, var_list=adversary_vars, global_step=global_step)
+        #
+        # self.sess.run(tf.global_variables_initializer())
+        # self.sess.run(tf.local_variables_initializer())
+        #
+        # # Begin training
+        # for epoch in range(self.num_epochs):
+        #     shuffled_ids = np.random.choice(num_train_samples, num_train_samples)
+        #     for i in range(num_train_samples//self.batch_size):
+        #         batch_ids = shuffled_ids[self.batch_size*i: self.batch_size*(i+1)]
+        #         batch_features = dataset.features[batch_ids]
+        #         batch_labels = np.reshape(temp_labels[batch_ids], [-1,1])
+        #         batch_protected_attributes = np.reshape(dataset.protected_attributes[batch_ids][:,
+        #                                      dataset.protected_attribute_names.index(self.protected_attribute_name)], [-1,1])
+        #
+        #         batch_feed_dict = {self.features_ph: batch_features,
+        #                            self.true_labels_ph: batch_labels,
+        #                            self.protected_attributes_ph: batch_protected_attributes,
+        #                            self.keep_prob: 0.8}
+        #         if self.debias:
+        #             _, _, pred_labels_loss_value, pred_protected_attributes_loss_vale = self.sess.run([classifier_minimizer,
+        #                            adversary_minimizer,
+        #                            pred_labels_loss,
+        #                            pred_protected_attributes_loss], feed_dict=batch_feed_dict)
+        #             if i % 200 == 0:
+        #                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (epoch, i, pred_labels_loss_value,
+        #                                                                          pred_protected_attributes_loss_vale))
+        #         else:
+        #             _, pred_labels_loss_value = self.sess.run(
+        #                 [classifier_minimizer,
+        #                  pred_labels_loss], feed_dict=batch_feed_dict)
+        #             if i % 200 == 0:
+        #                 print("epoch %d; iter: %d; batch classifier loss: %f" % (
+        #                 epoch, i, pred_labels_loss_value))
+        # return self
 
     def predict(self, dataset):
         """Obtain the predictions for the provided dataset using the fair

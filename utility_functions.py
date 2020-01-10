@@ -1,21 +1,29 @@
 # Importing Libraries
-from typing import Dict
+from typing import Dict, List, Tuple
 import numpy as np
 from sklearn.decomposition import PCA
+from load_vectors import *
+
+# Function to obtain the male-female gender word pairs
+def obtain_gender_pairs(data_path : str, save_dir : str, save_file : str) -> List[List]:
+    # List to store the male-female gender word pairs
+    pairs = []
+    # Defining the word-pairs
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["he", "she"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["his", "her"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["man", "woman"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["himself", "herself"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["son", "daughter"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["father", "mother"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["guy", "gal"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["boy", "girl"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["male", "female"]))
+    pairs.append(load_vectors(data_path, save_dir, save_file, ["John", "Mary"]))
+    # Returning the pairs
+    return pairs
 
 # Function to obtain the gender subspace or direction
-def obtain_gender_subspace(pairs : List, embeddings : Dict, components = 1 : int) -> np.ndarray:
-    # # Defining the 10 pairs of (male, female) words
-    # sets = [(embeddings['he'], embeddings['she']), \
-    #     (embeddings['his'], embeddings['her']), \
-    #     (embeddings['man'], embeddings['woman']), \
-    #     (embeddings['himself'], embeddings['herself']), \
-    #     (embeddings['son'], embeddings['daughter']), \
-    #     (embeddings['father'], embeddings['mother']), \
-    #     (embeddings['guy'], embeddings['gal']), \
-    #     (embeddings['boy'], embeddings['girl']), \
-    #     (embeddings['male'], embeddings['female']), \
-    #     (embeddings['John'], embeddings['Mary'])]
+def obtain_gender_subspace(pairs : List[List], components = 1 : int) -> np.ndarray:
     # Obtaining the means of each pair
     means = [sum(x) / len(x) for x in pairs]
     # Obtaining the differences

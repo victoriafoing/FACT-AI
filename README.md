@@ -9,5 +9,6 @@
 - [ ] Training with different embeddings
 - [ ] Evaluation code
 - [ ] Gender subspace code
-- [ ] Gender subspace code
+- [ ] Create a conda env / installation instructions
+- [ ] Usage instructions
 

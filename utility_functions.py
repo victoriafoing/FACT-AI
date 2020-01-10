@@ -23,7 +23,7 @@ def obtain_gender_pairs(data_path : str, save_dir : str, save_file : str) -> Lis
     return pairs
 
 # Function to obtain the gender subspace or direction
-def obtain_gender_subspace(pairs : List[List], components = 1 : int) -> np.ndarray:
+def obtain_gender_subspace(pairs : List[List], components: int = 1) -> np.ndarray:
     # Obtaining the means of each pair
     means = [sum(x) / len(x) for x in pairs]
     # Obtaining the differences

@@ -168,7 +168,7 @@ class AdversarialDebiasing:
 
             # Run the adversary
             pred_protected_attributes_labels, pred_protected_attributes_logits = self._adversary_model(pred_logits)
-            pred_protected_attributes_loss = torch.mean(F.binary_cross_entropy_with_logits(pred_protected_attributes_logits, batch_protected_attributes))
+            pred_protected_attributes_loss = torch.mean(F.binary_cross_entropy_with_logits(pred_protected_attributes_logits, batch_protected_attributes), dim=1)
 
             # Zero the gradients
             adversary_optimizer.zero_grad()

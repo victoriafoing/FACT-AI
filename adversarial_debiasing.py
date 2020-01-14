@@ -143,16 +143,16 @@ class AdversarialDebiasing:
 
             # Batch of features
             # batch_features: N x (WordEmbeddingDim * 3)
-            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings) for x in data_points])
+            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings).unsqueeze_(0) for x in data_points])
 
             # One-hot batch represetnation of a batch of labels
             # batch_labels: N x VocabularyDim
             # TODO: Batch labels should actually be the one-hot vector of labels of size vocabulary, not gt_embedding
-            batch_labels = torch.cat([torch.Tensor(x.gt_embedding) for x in data_points])
+            batch_labels = torch.cat([torch.Tensor(x.gt_embedding).unsqueeze_(0) for x in data_points])
 
             # Batch of protected attributes
             # batch_protected_attributes: N x 1 (?)
-            batch_protected_embeddings = torch.cat([torch.Tensor(x.protected_embedding) for x in data_points])
+            batch_protected_embeddings = torch.cat([torch.Tensor(x.protected_embedding).unsqueeze_(0) for x in data_points])
 
             # Run the classifier
             pred_embeddings = self._classifier_model(batch_features)

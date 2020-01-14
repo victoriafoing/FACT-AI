@@ -30,7 +30,7 @@ class AdversarialDebiasing:
                  batch_size=128,
                  classifier_num_hidden_units=200,
                  debias=True,
-                 word_embedding_dim=300):
+                 word_embedding_dim=100):
         """
         Args:
             unprivileged_groups (tuple): Representation for unprivileged groups
@@ -79,19 +79,16 @@ class AdversarialDebiasing:
         x3 = features[:, self.word_embedding_dim * 2:self.word_embedding_dim * 3]
 
         v = x1 + x2 - x3
-        pred = F.linear(v, torch.dot(self.W1.squeeze(), self.W1.transpose(0, 1).squeeze()))
-        pred_logit = v - pred
-        pred_label = F.softmax(pred_logit)
+        predicted_word = v - F.linear(v, self.W1 @ self.W1.transpose(0, 1))
 
-        return pred_label, pred_logit
+        return predicted_word
 
     def _adversary_model(self, pred_logits):
         """Compute the adversary predictions for the protected attribute.
         """
-        pred_protected_attribute_logit = F.linear(pred_logits, self.W2.transpose(0, 1))
-        pred_protected_attribute_label = F.sigmoid(pred_protected_attribute_logit)
+        pred_protected_embedding = F.linear(pred_logits, self.W2.transpose(0, 1))
 
-        return pred_protected_attribute_label, pred_protected_attribute_logit
+        return pred_protected_embedding
 
     def fit(self, dataset: List[Datapoint]):
         """Compute the model parameters of the fair classifier using gradient
@@ -155,22 +152,22 @@ class AdversarialDebiasing:
 
             # Batch of protected attributes
             # batch_protected_attributes: N x 1 (?)
-            batch_protected_attributes = torch.cat([torch.Tensor(x.protected_embedding) for x in data_points])
+            batch_protected_embeddings = torch.cat([torch.Tensor(x.protected_embedding) for x in data_points])
 
             # Run the classifier
-            pred_labels, pred_logits = self._classifier_model(batch_features)
-            pred_labels_loss = torch.mean(F.binary_cross_entropy_with_logits(pred_logits, batch_labels), dim=1)
+            pred_embeddings = self._classifier_model(batch_features)
+            pred_labels_loss = F.mse_loss(pred_embeddings, batch_labels)
 
             # Run the adversary
-            pred_protected_attributes_labels, pred_protected_attributes_logits = self._adversary_model(pred_logits)
-            pred_protected_attributes_loss = torch.mean(F.binary_cross_entropy_with_logits(pred_protected_attributes_logits, batch_protected_attributes), dim=1)
+            pred_protected_embeddings = self._adversary_model(pred_embeddings)
+            pred_protected_embeddings_loss = F.mse_loss(pred_protected_embeddings, batch_protected_embeddings)
 
             # Zero the gradients
             adversary_optimizer.zero_grad()
             classifier_optimizer.zero_grad()
 
             # Calculate the gradients for the adversary
-            pred_protected_attributes_loss.backward()
+            pred_protected_embeddings_loss.backward(retain_graph=True)
             adversary_grads = {var: var.grad for var in self.classifier_vars}
 
             # Optimize the Classifier with the gradients of the classifier and adversary
@@ -187,9 +184,9 @@ class AdversarialDebiasing:
             if self.debias:
                 adversary_optimizer.step()
 
-            if self.debias and i % 200 == 0 or True:
+            if self.debias and i % 10 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
-                    epoch, i, pred_labels_loss.item(), pred_protected_attributes_loss.item()))
+                    epoch, i, pred_labels_loss.item(), pred_protected_embeddings_loss.item()))
             elif i % 200 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f" % (
                     epoch, i, pred_labels_loss.item()))

@@ -20,4 +20,8 @@ We have a conda environment.yml file specifying the required packages:
 And activate the environment:
 
     $ conda activate fact
+    
+Update the env after installing a package:
+
+    $ conda env export --no-builds > environment.yml
 

@@ -23,5 +23,5 @@ And activate the environment:
     
 Update the env after installing a package:
 
-    $ conda env export --no-builds > environment.yml
+    $ conda env export --from-history > environment.yml
 

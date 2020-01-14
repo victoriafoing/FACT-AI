@@ -5,7 +5,7 @@ from sklearn.decomposition import PCA
 from load_vectors import *
 
 # Function to obtain the male-female gender word pairs
-def obtain_gender_pairs(word_vectors : Dict) -> List[List]:
+def obtain_gender_pairs(word_vectors : Dict) -> List[List[List]]:
     # List to store the male-female gender word pairs
     pairs = []
     # Defining the word-pairs

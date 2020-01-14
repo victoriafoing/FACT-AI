@@ -1,3 +1,4 @@
+import math
 from typing import List
 
 import numpy as np
@@ -23,8 +24,6 @@ class AdversarialDebiasing:
     """
 
     def __init__(self,
-                 unprivileged_groups,
-                 privileged_groups,
                  seed=None,
                  adversary_loss_weight=0.1,
                  num_epochs=50,
@@ -51,29 +50,22 @@ class AdversarialDebiasing:
         #     privileged_groups=privileged_groups)
         self.seed = seed
 
-        self.unprivileged_groups = unprivileged_groups
-        self.privileged_groups = privileged_groups
-        if len(self.unprivileged_groups) > 1 or len(self.privileged_groups) > 1:
-            raise ValueError("Only one unprivileged_group or privileged_group supported.")
-        self.protected_attribute_name = list(self.unprivileged_groups[0].keys())[0]
-
         self.adversary_loss_weight = adversary_loss_weight
         self.num_epochs = num_epochs
-        self.batch_size = batch_size
+        self.batch_size = int(batch_size)
         self.classifier_num_hidden_units = classifier_num_hidden_units
         self.debias = debias
         self.word_embedding_dim = word_embedding_dim
 
-        self.features_dim = None
-        self.features_ph = None
-        self.protected_attributes_ph = None
-        self.true_labels_ph = None
-        self.pred_labels = None
+        # self.features_ph = None
+        # self.protected_attributes_ph = None
+        # self.true_labels_ph = None
+        # self.pred_labels = None
 
-        self.W1 = torch.Tensor(self.features_dim, 1)
+        self.W1 = torch.Tensor(self.word_embedding_dim, 1)
         self.W1 = nn.Parameter(nn.init.xavier_uniform_(self.W1))
 
-        self.W2 = torch.Tensor(self.features_dim, 1)
+        self.W2 = torch.Tensor(self.word_embedding_dim, 1)
         self.W2 = nn.Parameter(nn.init.xavier_uniform_(self.W2))
 
         self.classifier_vars = [self.W1]
@@ -87,7 +79,7 @@ class AdversarialDebiasing:
         x3 = features[:, self.word_embedding_dim * 2:self.word_embedding_dim * 3]
 
         v = x1 + x2 - x3
-        pred = F.linear(v, torch.dot(self.W1, self.W1.T))
+        pred = F.linear(v, torch.dot(self.W1.squeeze(), self.W1.transpose(0, 1).squeeze()))
         pred_logit = v - pred
         pred_label = F.softmax(pred_logit)
 
@@ -96,7 +88,7 @@ class AdversarialDebiasing:
     def _adversary_model(self, pred_logits):
         """Compute the adversary predictions for the protected attribute.
         """
-        pred_protected_attribute_logit = F.linear(pred_logits, self.W2.T)
+        pred_protected_attribute_logit = F.linear(pred_logits, self.W2.transpose(0, 1))
         pred_protected_attribute_label = F.sigmoid(pred_protected_attribute_logit)
 
         return pred_protected_attribute_label, pred_protected_attribute_logit
@@ -117,14 +109,16 @@ class AdversarialDebiasing:
         classifier_optimizer = optim.Adam([self.W1], lr=starter_learning_rate)
         adversary_optimizer = optim.Adam([self.W2], lr=starter_learning_rate)
 
-        predictor_lr_scheduler = optim.lr_scheduler.ExponentialLR(classifier_optimizer, 0.96, last_epoch=self.num_epochs)
-        adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96, last_epoch=self.num_epochs)
+        predictor_lr_scheduler = optim.lr_scheduler.ExponentialLR(classifier_optimizer, 0.96)
+        adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96)
 
         num_train_samples = len(dataset)
 
         for epoch in range(self.num_epochs):
+            print(f"[{epoch}/{self.num_epochs}] Running epoch")
+
             # All shuffled ids
-            shuffled_ids = np.random.choice(num_train_samples, num_train_samples)
+            shuffled_ids = np.random.choice(num_train_samples, num_train_samples).astype(int)
 
             self.train(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
 
@@ -144,23 +138,24 @@ class AdversarialDebiasing:
             num_train_samples:
             epoch:
         """
-        for i in range(num_train_samples // self.batch_size):
-            batch_ids = shuffled_ids[self.batch_size * i: self.batch_size * (i + 1)]
+        print(self.batch_size, num_train_samples, range(num_train_samples // self.batch_size))
+        for i in range(math.ceil(num_train_samples // self.batch_size)):
+            batch_ids = shuffled_ids[self.batch_size * i: self.batch_size * (i + 1)].astype(int)
 
-            data_points: List[Datapoint] = dataset[batch_ids]
+            data_points: List[Datapoint] = [dataset[i] for i in batch_ids]
 
             # Batch of features
             # batch_features: N x (WordEmbeddingDim * 3)
-            batch_features = torch.cat((torch.Tensor(x.analogy_embeddings) for x in data_points))
+            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings) for x in data_points])
 
             # One-hot batch represetnation of a batch of labels
             # batch_labels: N x VocabularyDim
             # TODO: Batch labels should actually be the one-hot vector of labels of size vocabulary, not gt_embedding
-            batch_labels = torch.cat((torch.Tensor(x.gt_embedding) for x in data_points))
+            batch_labels = torch.cat([torch.Tensor(x.gt_embedding) for x in data_points])
 
             # Batch of protected attributes
             # batch_protected_attributes: N x 1 (?)
-            batch_protected_attributes = torch.cat((torch.Tensor(x.protected_attribute) for x in data_points))
+            batch_protected_attributes = torch.cat([torch.Tensor(x.protected_embedding) for x in data_points])
 
             # Run the classifier
             pred_labels, pred_logits = self._classifier_model(batch_features)
@@ -192,7 +187,7 @@ class AdversarialDebiasing:
             if self.debias:
                 adversary_optimizer.step()
 
-            if self.debias and i % 200 == 0:
+            if self.debias and i % 200 == 0 or True:
                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
                     epoch, i, pred_labels_loss.item(), pred_protected_attributes_loss.item()))
             elif i % 200 == 0:

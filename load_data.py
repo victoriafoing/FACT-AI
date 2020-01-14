@@ -35,16 +35,17 @@ def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) ->
     gender_subspace = obtain_gender_subspace(gender_pairs)
     # For each Raw_Datapoint tuple in the list
     for raw_datapoint in analogy_dataset:
-        # Temporary transformed datapoint
-        temp_datapoint = Datapoint()
         # Obtaining a list of the corresponding word embeddings
         embeddings = load_vectors(word_vectors, [raw_datapoint.x1, raw_datapoint.x2, raw_datapoint.x3, raw_datapoint.y])
+        embeddings = np.array(embeddings)
         # Stacking the embeddings horizontally : [1 X 3D]
-        temp_datapoint.analogy_embeddings = np.hstack(embeddings[0 : 3])
+        a = np.hstack(tuple(embeddings[0 : 3]))
         # Obtaining the embedding corresponding to y
-        temp_datapoint.gt_embedding = embeddings[3]
+        b = embeddings[3]
         # Obtaining the embedding corresponding to z (protected variable)
-        temp_datapoint.protected_embedding = obtain_vector_projection(embeddings[3], gender_subspace)
+        c = obtain_vector_projection(embeddings[3], gender_subspace)
+        # Temporary transformed datapoint
+        temp_datapoint = Datapoint(*[a, b, c])
         # Adding to the list of transformed datapoints
         transformed_dataset.append(temp_datapoint)
     # Returning the list of transformed datapoints

@@ -34,6 +34,7 @@ def get_words_from_file(datapath, word_list):
 
 def load_vectors(word_vectors : Dict, data_point : List) -> List:
     #words = get_words_from_file(config.data_path, config.word_list)
+    data_point = [x.lower() for x in data_point]
     vectors = word_vectors[data_point]
     return vectors.tolist()
 

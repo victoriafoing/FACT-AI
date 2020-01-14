@@ -25,8 +25,10 @@ def obtain_gender_pairs(word_vectors : Dict) -> List[List]:
 # Function to obtain the gender subspace or direction
 def obtain_gender_subspace(pairs : List[List[List]], components: int = 1) -> np.ndarray:
     # Obtaining the means of each pair
+    # List of numpy arrays (means)
     means = [np.sum(np.array(x), axis = 0) / np.array(x).shape[0] for x in pairs]
     # Obtaining the differences
+    # Numpy array 20 X Word_embedding_dim
     differences = np.array([np.array(x) - means[i] for i in range(len(means)) for x in pairs[i]])
     # Obtaining an object of the PCA class
     pca = PCA(n_components = components)

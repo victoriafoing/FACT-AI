@@ -1,7 +1,6 @@
 # Adverserial Debiasing
 
-
-### TODO:
+## TODO:
 
 - [ ] Demo notebook
 - [ ] Training Code
@@ -11,4 +10,14 @@
 - [ ] Gender subspace code
 - [ ] Create a conda env / installation instructions
 - [ ] Usage instructions
+
+## Installation
+
+We have a conda environment.yml file specifying the required packages:
+
+    $ conda env create -f environment.yml
+
+And activate the environment:
+
+    $ conda activate fact
 

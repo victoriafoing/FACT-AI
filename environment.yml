@@ -2,10 +2,13 @@ name: fact
 channels:
   - defaults
 dependencies:
-  - python=3.7
   - pytorch
+  - python=3.7
   - ipykernel
-  - tornado
+  - jupyter
   - pandas
+  - tornado
   - scikit-learn
+  - gensim
+prefix: /home/rochelle/anaconda3/envs/fact
 

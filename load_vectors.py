@@ -3,15 +3,19 @@ from gensim.models import Word2Vec
 from gensim.test.utils import datapath, get_tmpfile
 from gensim.models import KeyedVectors
 from gensim.scripts.glove2word2vec import glove2word2vec
+from typing import Dict, List
 
-def load_pretrained_vectors(data_path, savedir, savefile, glove):
-    
+def load_pretrained_vectors(data_path, savedir, savefile, use_glove):
 
-    if os.path.isfile(savedir+savefile):
+    # If the save directory does not exist
+    if not os.path.exists(f'{savedir}'):
+        os.makedirs(f'{savedir}')
+
+    if os.path.isfile(savedir + savefile):
+        print("Loading from saved file.")
         word_vectors = KeyedVectors.load(savedir+savefile)
-
     else: 
-        if glove:
+        if use_glove:
             tmp_file = get_tmpfile("toword2vec.txt")
             _ = glove2word2vec(data_path, tmp_file)
             data_path = tmp_file
@@ -28,15 +32,10 @@ def get_words_from_file(datapath, word_list):
     return list(set(words))
 
 
-def load_vectors(data_path, savedir, savefile, data_point, glove=False):
-    # data_point is a list of words
-    if not os.path.exists(f'{savedir}'):
-        os.makedirs(f'{savedir}')
-
-    word_vectors = load_pretrained_vectors(data_path, savedir, savefile, glove)
+def load_vectors(word_vectors : Dict, data_point : List) -> List:
     #words = get_words_from_file(config.data_path, config.word_list)
     vectors = word_vectors[data_point]
-    return vectors
+    return vectors.tolist()
 
 # Example: 
 # Wikipedia

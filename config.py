@@ -1,4 +1,7 @@
 # Configuration Variables
-embedding_data_path = "data/enwiki_20180420_win10_100d.txt/data"
+wiki_embedding_data_path = "data/enwiki_20180420_100d.txt"
+glove_embedding_data_path = "data/glove.twitter.27B.100d.txt"
 save_dir = "pre-trained/"
-save_file = "wikipedia"
+wiki_save_file = "wikipedia"
+glove_save_file = "glove"
+use_glove = False

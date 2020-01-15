@@ -71,6 +71,11 @@ class AdversarialDebiasing:
         self.classifier_vars = [self.W1]
         self.adversary_vars = [self.W2]
 
+        self.losses = {
+            'predictor': [],
+            'adversary': [],
+        }
+
     def _classifier_model(self, features):
         """Compute the classifier predictions for the outcome variable.
         """
@@ -78,7 +83,7 @@ class AdversarialDebiasing:
         x2 = features[:, self.word_embedding_dim:self.word_embedding_dim * 2]
         x3 = features[:, self.word_embedding_dim * 2:self.word_embedding_dim * 3]
 
-        v = x1 + x2 - x3
+        v = x2 + x3 - x1
         predicted_word = v - F.linear(v, self.W1 @ self.W1.transpose(0, 1))
 
         return predicted_word
@@ -86,7 +91,7 @@ class AdversarialDebiasing:
     def _adversary_model(self, pred_logits):
         """Compute the adversary predictions for the protected attribute.
         """
-        pred_protected_embedding = F.linear(pred_logits, self.W2.transpose(0, 1))
+        pred_protected_embedding = F.linear(pred_logits, self.W2 @  self.W2.transpose(0, 1))
 
         return pred_protected_embedding
 
@@ -135,7 +140,6 @@ class AdversarialDebiasing:
             num_train_samples:
             epoch:
         """
-        print(self.batch_size, num_train_samples, range(num_train_samples // self.batch_size))
         for i in range(math.ceil(num_train_samples // self.batch_size)):
             batch_ids = shuffled_ids[self.batch_size * i: self.batch_size * (i + 1)].astype(int)
 
@@ -183,6 +187,9 @@ class AdversarialDebiasing:
             # Update adversary parameters by the gradient of pred_protected_attributes_loss
             if self.debias:
                 adversary_optimizer.step()
+
+            self.losses['predictor'].append(pred_labels_loss.item())
+            self.losses['adversary'].append(pred_protected_embeddings_loss.item())
 
             if self.debias and i % 10 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (

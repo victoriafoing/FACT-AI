@@ -198,7 +198,7 @@ class AdversarialDebiasing:
                 print("epoch %d; iter: %d; batch classifier loss: %f" % (
                     epoch, i, pred_labels_loss.item()))
 
-    def predict(self, dataset):
+    def predict(self,  datapoints: np.ndarray) -> np.ndarray:
         """Obtain the predictions for the provided dataset using the fair
         classifier learned.
         Args:
@@ -207,45 +207,9 @@ class AdversarialDebiasing:
         Returns:
             dataset (BinaryLabelDataset): Transformed dataset.
         """
-        if self.seed is not None:
-            np.random.seed(self.seed)
-
-        num_test_samples, _ = np.shape(dataset.features)
-
-        samples_covered = 0
-        pred_labels = []
-        while samples_covered < num_test_samples:
-            start = samples_covered
-            end = samples_covered + self.batch_size
-            if end > num_test_samples:
-                end = num_test_samples
-            batch_ids = np.arange(start, end)
-            batch_features = dataset.features[batch_ids]
-            batch_labels = np.reshape(dataset.labels[batch_ids], [-1, 1])
-            batch_protected_attributes = np.reshape(dataset.protected_attributes[batch_ids][:,
-                                                    dataset.protected_attribute_names.index(self.protected_attribute_name)], [-1, 1])
-
-            batch_feed_dict = {self.features_ph: batch_features,
-                               self.true_labels_ph: batch_labels,
-                               self.protected_attributes_ph: batch_protected_attributes,
-                               self.keep_prob: 1.0}
-
-            pred_labels += self.sess.run(self.pred_labels, feed_dict=batch_feed_dict)[:, 0].tolist()
-            samples_covered += len(batch_features)
-
-        # Mutated, fairer dataset with new labels
-        dataset_new = dataset.copy(deepcopy=True)
-        dataset_new.labels = (np.array(pred_labels) > 0.5).astype(np.float64).reshape(-1, 1)
-
-        # Map the dataset labels to back to their original values.
-        temp_labels = dataset_new.labels.copy()
-
-        temp_labels[(dataset_new.labels == 1.0).ravel(), 0] = dataset.favorable_label
-        temp_labels[(dataset_new.labels == 0.0).ravel(), 0] = dataset.unfavorable_label
-
-        dataset_new.labels = temp_labels.copy()
-
-        return dataset_new
+        batch_features = torch.cat([torch.Tensor(x).unsqueeze_(0) for x in datapoints])
+        predictions = self._classifier_model(batch_features)
+        return predictions.detach().numpy()
 
 
 def normalize(x):

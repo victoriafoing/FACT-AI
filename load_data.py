@@ -36,8 +36,11 @@ def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) ->
     # For each Raw_Datapoint tuple in the list
     for raw_datapoint in analogy_dataset:
         # Obtaining a list of the corresponding word embeddings
-        embeddings = load_vectors(word_vectors, [raw_datapoint.x1, raw_datapoint.x2, raw_datapoint.x3, raw_datapoint.y])
-        embeddings = np.array(embeddings)
+        try:
+            embeddings = load_vectors(word_vectors, [raw_datapoint.x1, raw_datapoint.x2, raw_datapoint.x3, raw_datapoint.y])
+            embeddings = np.array(embeddings)
+        except:
+            continue
         # Stacking the embeddings horizontally : [1 X 3D]
         a = np.hstack(tuple(embeddings[0 : 3]))
         # Obtaining the embedding corresponding to y

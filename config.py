@@ -4,4 +4,4 @@ glove_embedding_data_path = "data/glove.twitter.27B.100d.txt"
 save_dir = "pre-trained/"
 wiki_save_file = "wikipedia"
 glove_save_file = "glove"
-use_glove = False
+use_glove = True

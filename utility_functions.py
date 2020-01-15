@@ -50,3 +50,15 @@ def obtain_vector_projection(a : np.ndarray, b : np.ndarray) -> np.ndarray:
     a_projections = np.sum(a_projections, axis = 0)
     # Returning the overall projection vector
     return a_projections
+
+# Function to obtain the 10 most similar words to the predicted embedding
+def obtain_most_similar(a : np.ndarray, word_vectors : Dict, similar_count : int = 10) -> List[List[tuple]]:
+    # Resolving memory issues
+    word_vectors.init_sims(replace = True)
+    # If only a single predicted embedding has been passed
+    if len(a.shape) == 1:
+        a = np.reshape(a, (1, -1))
+    # For each predicted embedding
+    most_similar_list = [word_vectors.similar_by_vector(a[i], topn = similar_count) for i in range(a.shape[0])]
+    # Returning the list
+    return most_similar_list

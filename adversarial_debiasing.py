@@ -25,12 +25,14 @@ class AdversarialDebiasing:
 
     def __init__(self,
                  seed=None,
-                 adversary_loss_weight=0.1,
-                 num_epochs=50,
-                 batch_size=128,
+                 adversary_loss_weight=1.0,
+                 num_epochs=500,
+                 batch_size=1000,
                  classifier_num_hidden_units=200,
                  debias=True,
-                 word_embedding_dim=100):
+                 word_embedding_dim=100,
+                 classifier_learning_rate = 2 ** -16,
+                 adversary_learning_rate = 2 ** -16):
         """
         Args:
             unprivileged_groups (tuple): Representation for unprivileged groups
@@ -56,6 +58,8 @@ class AdversarialDebiasing:
         self.classifier_num_hidden_units = classifier_num_hidden_units
         self.debias = debias
         self.word_embedding_dim = word_embedding_dim
+        self.classifier_learning_rate = classifier_learning_rate
+        self.adversary_learning_rate = adversary_learning_rate
 
         # self.features_ph = None
         # self.protected_attributes_ph = None
@@ -107,9 +111,9 @@ class AdversarialDebiasing:
             np.random.seed(self.seed)
 
         # Obtain classifier predictions and classifier loss
-        starter_learning_rate = 0.001
-        classifier_optimizer = optim.Adam([self.W1], lr=starter_learning_rate)
-        adversary_optimizer = optim.Adam([self.W2], lr=starter_learning_rate)
+        # starter_learning_rate = 0.001
+        classifier_optimizer = optim.Adam([self.W1], lr=self.classifier_learning_rate)
+        adversary_optimizer = optim.Adam([self.W2], lr=self.adversary_learning_rate)
 
         predictor_lr_scheduler = optim.lr_scheduler.ExponentialLR(classifier_optimizer, 0.96)
         adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96)

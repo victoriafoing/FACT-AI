@@ -125,7 +125,8 @@ class AdversarialDebiasing:
             self.train(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
 
             predictor_lr_scheduler.step()
-            adversary_lr_scheduler.step()
+            if self.debias:
+                adversary_lr_scheduler.step()
 
         return self
 

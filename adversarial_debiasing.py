@@ -120,7 +120,7 @@ class AdversarialDebiasing:
             print(f"[{epoch}/{self.num_epochs}] Running epoch")
 
             # All shuffled ids
-            shuffled_ids = np.random.choice(num_train_samples, num_train_samples).astype(int)
+            shuffled_ids = np.random.choice(num_train_samples, num_train_samples, replace=False).astype(int)
 
             self.train(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
 
@@ -194,7 +194,7 @@ class AdversarialDebiasing:
             if self.debias and i % 10 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
                     epoch, i, pred_labels_loss.item(), pred_protected_embeddings_loss.item()))
-            elif i % 200 == 0:
+            elif i % 10 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f" % (
                     epoch, i, pred_labels_loss.item()))
 

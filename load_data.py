@@ -51,7 +51,6 @@ def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) ->
         temp_datapoint = Datapoint(*[a, b, c])
         # Adding to the list of transformed datapoints
         transformed_dataset.append(temp_datapoint)
-    print(transformed_dataset[0])
     # Returning the list of transformed datapoints
     return transformed_dataset
         

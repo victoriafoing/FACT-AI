@@ -8,7 +8,7 @@ import config
 RawDatapoint = namedtuple('Raw_Datapoint', ['x1', 'x2', 'x3', 'y', 'task'])
 
 # Named tuple to store the corresponding embeddings of the analogy words
-Datapoint = namedtuple('Datapoint', ['analogy_embeddings', 'gt_embedding', 'protected_embedding'])
+Datapoint = namedtuple('Datapoint', ['analogy_embeddings', 'gt_embedding', 'protected'])
 
 # Function to load the data from the google analogy text file
 def load_data(path: Path = Path('./data/google-analogies.txt')) -> List[RawDatapoint]:
@@ -46,11 +46,12 @@ def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) ->
         # Obtaining the embedding corresponding to y
         b = embeddings[3]
         # Obtaining the embedding corresponding to z (protected variable)
-        c = obtain_vector_projection(embeddings[3], gender_subspace)
+        c = b.dot(gender_subspace.T)
         # Temporary transformed datapoint
         temp_datapoint = Datapoint(*[a, b, c])
         # Adding to the list of transformed datapoints
         transformed_dataset.append(temp_datapoint)
+    print(transformed_dataset[0])
     # Returning the list of transformed datapoints
     return transformed_dataset
         

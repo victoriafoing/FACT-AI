@@ -26,11 +26,11 @@ class AdversarialDebiasing:
     def __init__(self,
                  seed=None,
                  adversary_loss_weight=1.0,
-                 num_epochs=500,
+                 num_epochs=50,
                  batch_size=1000,
                  classifier_num_hidden_units=200,
                  debias=True,
-                 word_embedding_dim=100,
+                 word_embedding_dim=300,
                  classifier_learning_rate = 2 ** -16,
                  adversary_learning_rate = 2 ** -16):
         """

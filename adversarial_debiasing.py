@@ -91,9 +91,9 @@ class AdversarialDebiasing:
     def _adversary_model(self, pred_logits):
         """Compute the adversary predictions for the protected attribute.
         """
-        pred_protected_embedding = F.linear(pred_logits, self.W2 @  self.W2.transpose(0, 1))
+        pred_protected = F.linear(pred_logits, self.W2.transpose(0, 1))
 
-        return pred_protected_embedding
+        return pred_protected
 
     def fit(self, dataset: List[Datapoint]):
         """Compute the model parameters of the fair classifier using gradient
@@ -157,22 +157,24 @@ class AdversarialDebiasing:
 
             # Batch of protected attributes
             # batch_protected_attributes: N x 1 (?)
-            batch_protected_embeddings = torch.cat([torch.Tensor(x.protected_embedding).unsqueeze_(0) for x in data_points])
+            batch_protected_labels = torch.cat([torch.Tensor(x.protected) for x in data_points])
+
 
             # Run the classifier
             pred_embeddings = self._classifier_model(batch_features)
             pred_labels_loss = F.mse_loss(pred_embeddings, batch_labels)
 
             # Run the adversary
-            pred_protected_embeddings = self._adversary_model(pred_embeddings)
-            pred_protected_embeddings_loss = F.mse_loss(pred_protected_embeddings, batch_protected_embeddings)
+            pred_protected = self._adversary_model(pred_embeddings)
+            pred_protected = pred_protected.squeeze()
+            pred_protected_loss = F.mse_loss(pred_protected, batch_protected_labels)
 
             # Zero the gradients
             adversary_optimizer.zero_grad()
             classifier_optimizer.zero_grad()
 
             # Calculate the gradients for the adversary
-            pred_protected_embeddings_loss.backward(retain_graph=True)
+            pred_protected_loss.backward(retain_graph=True)
             adversary_grads = {var: var.grad for var in self.classifier_vars}
 
             # Optimize the Classifier with the gradients of the classifier and adversary
@@ -190,11 +192,11 @@ class AdversarialDebiasing:
                 adversary_optimizer.step()
 
             self.losses['predictor'].append(pred_labels_loss.item())
-            self.losses['adversary'].append(pred_protected_embeddings_loss.item())
+            self.losses['adversary'].append(pred_protected_loss.item())
 
             if self.debias and i % 10 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
-                    epoch, i, pred_labels_loss.item(), pred_protected_embeddings_loss.item()))
+                    epoch, i, pred_labels_loss.item(), pred_protected_loss.item()))
             elif i % 200 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f" % (
                     epoch, i, pred_labels_loss.item()))

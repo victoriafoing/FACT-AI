@@ -30,7 +30,7 @@ class AdversarialDebiasing:
                  batch_size=1000,
                  classifier_num_hidden_units=200,
                  debias=True,
-                 word_embedding_dim=300,
+                 word_embedding_dim=100,
                  classifier_learning_rate = 2 ** -16,
                  adversary_learning_rate = 2 ** -16):
         """
@@ -218,6 +218,8 @@ class AdversarialDebiasing:
         predictions = self._classifier_model(batch_features)
         return predictions.detach().numpy()
 
+    def get_model_weights(self):
+        return self.W1
 
 def normalize(x):
     return x / (torch.norm(x) + np.finfo(np.float32).tiny)

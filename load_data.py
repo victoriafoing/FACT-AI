@@ -52,6 +52,6 @@ def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint], us
         # Adding to the list of transformed datapoints
         transformed_dataset.append(temp_datapoint)
     # Returning the list of transformed datapoints
-    return transformed_dataset
+    return transformed_dataset, gender_subspace
         
 

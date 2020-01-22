@@ -26,7 +26,7 @@ class AdversarialDebiasing:
     def __init__(self,
                  seed=None,
                  adversary_loss_weight=1.0,
-                 num_epochs=50,
+                 num_epochs=500,
                  batch_size=1000,
                  classifier_num_hidden_units=200,
                  debias=True,
@@ -70,7 +70,7 @@ class AdversarialDebiasing:
         self.W1 = nn.Parameter(nn.init.xavier_uniform_(self.W1))
 
         self.W2 = torch.Tensor(self.word_embedding_dim, 1)
-        self.W2 = nn.Parameter(nn.init.xavier_uniform_(self.W2))
+        self.W2 = nn.Parameter(nn.init.zeros_(self.W2))
 
         self.classifier_vars = [self.W1]
         self.adversary_vars = [self.W2]

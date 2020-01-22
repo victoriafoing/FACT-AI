@@ -23,15 +23,20 @@ def obtain_gender_pairs(word_vectors : Dict) -> List[List[List]]:
     return pairs
 
 # Function to obtain the gender subspace or direction
-def obtain_gender_subspace(pairs : List[List[List]], components: int = 1) -> np.ndarray:
-    # Obtaining the means of each pair
-    # List of numpy arrays (means)
-    means = [np.sum(np.array(x), axis = 0) / np.array(x).shape[0] for x in pairs]
-    # Obtaining the differences
-    # Numpy array 20 X Word_embedding_dim
-    differences = np.array([np.array(x) - means[i] for i in range(len(means)) for x in pairs[i]])
+def obtain_gender_subspace(pairs : List[List[List]], components: int = 1, use_boluk : bool = False) -> np.ndarray:
     # Obtaining an object of the PCA class
     pca = PCA(n_components = components)
+    # If we want to use the bolukbasi method
+    if use_boluk:
+        # Obtaining the means of each pair
+        # List of numpy arrays (means)
+        means = [np.sum(np.array(x), axis = 0) / np.array(x).shape[0] for x in pairs]
+        # Obtaining the differences
+        # Numpy array 20 X Word_embedding_dim
+        differences = np.array([np.array(x) - means[i] for i in range(len(means)) for x in pairs[i]])
+    else:
+        # Obtaining the difference vectors of each pair
+        differences = np.array([np.array(x[0]) - np.array(x[1]) for x in pairs])
     # Fitting the PCA object onto the difference matrix
     pca.fit(differences)
     # Returning the PCA components spanning the gender / bias subspace

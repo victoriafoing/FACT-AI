@@ -26,13 +26,13 @@ def load_data(path: Path = Path('./data/google-analogies.txt')) -> List[RawDatap
     return dataset
 
 # Function to transform the raw data into their corresponding word embeddings
-def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) -> List[Datapoint]:
+def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint], use_boluk : bool = False) -> List[Datapoint]:
     # List to store the transformed datapoints
     transformed_dataset = []
     # Obtaining the gender word pairs
     gender_pairs = obtain_gender_pairs(word_vectors)
     # Obtaining the gender subspace
-    gender_subspace = obtain_gender_subspace(gender_pairs)
+    gender_subspace = obtain_gender_subspace(gender_pairs, use_boluk = use_boluk)
     # For each Raw_Datapoint tuple in the list
     for raw_datapoint in analogy_dataset:
         # Obtaining a list of the corresponding word embeddings

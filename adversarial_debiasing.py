@@ -32,7 +32,8 @@ class AdversarialDebiasing:
                  debias=True,
                  word_embedding_dim=100,
                  classifier_learning_rate = 2 ** -16,
-                 adversary_learning_rate = 2 ** -16):
+                 adversary_learning_rate = 2 ** -16,
+                 gender_subspace = None):
         """
         Args:
             unprivileged_groups (tuple): Representation for unprivileged groups
@@ -60,6 +61,7 @@ class AdversarialDebiasing:
         self.word_embedding_dim = word_embedding_dim
         self.classifier_learning_rate = classifier_learning_rate
         self.adversary_learning_rate = adversary_learning_rate
+        self.gender_subspace = gender_subspace
 
         # self.features_ph = None
         # self.protected_attributes_ph = None
@@ -116,7 +118,8 @@ class AdversarialDebiasing:
         adversary_optimizer = optim.Adam([self.W2], lr=self.adversary_learning_rate)
 
         predictor_lr_scheduler = optim.lr_scheduler.ExponentialLR(classifier_optimizer, 0.96)
-        adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96)
+        if self.debias:
+            adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96)
 
         num_train_samples = len(dataset)
 
@@ -131,6 +134,10 @@ class AdversarialDebiasing:
             predictor_lr_scheduler.step()
             if self.debias:
                 adversary_lr_scheduler.step()
+
+            if epoch % 10 == 0:
+                print("||w||:",np.linalg.norm(self.W1.detach()),"w.T g:",np.dot(self.W1.detach().numpy().T, self.gender_subspace.T))
+                print("||w2||:",np.linalg.norm(self.W2.detach()))
 
         return self
 
@@ -150,16 +157,12 @@ class AdversarialDebiasing:
 
             data_points: List[Datapoint] = [dataset[i] for i in batch_ids]
 
-            # Batch of features
             # batch_features: N x (WordEmbeddingDim * 3)
             batch_features = torch.cat([torch.Tensor(x.analogy_embeddings).unsqueeze_(0) for x in data_points])
 
-            # One-hot batch represetnation of a batch of labels
             # batch_labels: N x VocabularyDim
-            # TODO: Batch labels should actually be the one-hot vector of labels of size vocabulary, not gt_embedding
             batch_labels = torch.cat([torch.Tensor(x.gt_embedding).unsqueeze_(0) for x in data_points])
 
-            # Batch of protected attributes
             # batch_protected_attributes: N x 1 (?)
             batch_protected_labels = torch.cat([torch.Tensor(x.protected) for x in data_points])
 
@@ -169,20 +172,25 @@ class AdversarialDebiasing:
             pred_labels_loss = F.mse_loss(pred_embeddings, batch_labels)
 
             # Run the adversary
-            pred_protected = self._adversary_model(pred_embeddings)
-            pred_protected = pred_protected.squeeze()
-            pred_protected_loss = F.mse_loss(pred_protected, batch_protected_labels)
+            if self.debias:
+                pred_protected = self._adversary_model(pred_embeddings)
+                pred_protected = pred_protected.squeeze()
+                pred_protected_loss = F.mse_loss(pred_protected, batch_protected_labels)
 
             # Zero the gradients
-            adversary_optimizer.zero_grad()
+            if self.debias:
+                adversary_optimizer.zero_grad()
             classifier_optimizer.zero_grad()
 
             # Calculate the gradients for the adversary
-            pred_protected_loss.backward(retain_graph=True)
-            adversary_grads = {var: var.grad for var in self.classifier_vars}
+            if self.debias:
+                # Calculate adversary gradients with respect to W1?
+                pred_protected_loss.backward(retain_graph=True)
+                adversary_grads = {var: var.grad.clone() for var in self.classifier_vars}
 
             # Optimize the Classifier with the gradients of the classifier and adversary
             pred_labels_loss.backward()
+
             for classifier_var in self.classifier_vars:
                 grad = classifier_var.grad
                 if self.debias:
@@ -196,7 +204,9 @@ class AdversarialDebiasing:
                 adversary_optimizer.step()
 
             self.losses['predictor'].append(pred_labels_loss.item())
-            self.losses['adversary'].append(pred_protected_loss.item())
+
+            if self.debias:
+                self.losses['adversary'].append(pred_protected_loss.item())
 
             if self.debias and i % 10 == 0:
                 print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (

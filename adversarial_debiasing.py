@@ -28,7 +28,6 @@ class AdversarialDebiasing:
                  adversary_loss_weight=1.0,
                  num_epochs=500,
                  batch_size=1000,
-                 classifier_num_hidden_units=200,
                  debias=True,
                  word_embedding_dim=100,
                  classifier_learning_rate = 2 ** -16,
@@ -48,31 +47,24 @@ class AdversarialDebiasing:
             debias (bool, optional): Learn a classifier with or without
                 debiasing.
         """
-        # super(AdversarialDebiasing, self).__init__(
-        #     unprivileged_groups=unprivileged_groups,
-        #     privileged_groups=privileged_groups)
         self.seed = seed
 
         self.adversary_loss_weight = adversary_loss_weight
         self.num_epochs = num_epochs
         self.batch_size = int(batch_size)
-        self.classifier_num_hidden_units = classifier_num_hidden_units
         self.debias = debias
         self.word_embedding_dim = word_embedding_dim
         self.classifier_learning_rate = classifier_learning_rate
         self.adversary_learning_rate = adversary_learning_rate
         self.gender_subspace = gender_subspace
 
-        # self.features_ph = None
-        # self.protected_attributes_ph = None
-        # self.true_labels_ph = None
-        # self.pred_labels = None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.W1 = torch.Tensor(self.word_embedding_dim, 1)
+        self.W1 = torch.Tensor(self.word_embedding_dim, 1).to(device=self.device)
         self.W1 = nn.Parameter(nn.init.xavier_uniform_(self.W1))
 
-        self.W2 = torch.Tensor(self.word_embedding_dim, 1)
-        self.W2 = nn.Parameter(nn.init.zeros_(self.W2))
+        self.W2 = torch.Tensor(self.word_embedding_dim, 1).to(device=self.device)
+        self.W2 = nn.Parameter(nn.init.normal_(self.W2, mean=0.000001, std=0.00001))
 
         self.classifier_vars = [self.W1]
         self.adversary_vars = [self.W2]
@@ -129,20 +121,21 @@ class AdversarialDebiasing:
             # All shuffled ids
             shuffled_ids = np.random.choice(num_train_samples, num_train_samples).astype(int)
 
-            self.train(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
+            self._train_epoch(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
 
             predictor_lr_scheduler.step()
             if self.debias:
                 adversary_lr_scheduler.step()
 
             if epoch % 10 == 0:
-                print("||w||:",np.linalg.norm(self.W1.detach()),"w.T g:",np.dot(self.W1.detach().numpy().T, self.gender_subspace.T))
-                print("||w2||:",np.linalg.norm(self.W2.detach()))
+                print(f"||w||: {np.linalg.norm(self.W1.cpu().clone().detach())}")
+                print(f"||w2||: {np.linalg.norm(self.W2.cpu().clone().detach())}")
+                print(f"w.T g: {np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T)}")
 
         return self
 
-    def train(self, dataset: List[Datapoint], shuffled_ids: np.ndarray, classifier_optimizer: Adam, adversary_optimizer: Adam, num_train_samples: int,
-              epoch: int):
+    def _train_epoch(self, dataset: List[Datapoint], shuffled_ids: np.ndarray, classifier_optimizer: Adam, adversary_optimizer: Adam, num_train_samples: int,
+                     epoch: int):
         """ Train the model for one epoch
 
         Args:
@@ -152,19 +145,19 @@ class AdversarialDebiasing:
             num_train_samples:
             epoch:
         """
-        for i in range(math.ceil(num_train_samples // self.batch_size)):
+        for i in range(math.floor(num_train_samples // self.batch_size)):
             batch_ids = shuffled_ids[self.batch_size * i: self.batch_size * (i + 1)].astype(int)
 
             data_points: List[Datapoint] = [dataset[i] for i in batch_ids]
 
             # batch_features: N x (WordEmbeddingDim * 3)
-            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings).unsqueeze_(0) for x in data_points])
+            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings).unsqueeze_(0) for x in data_points]).to(device=self.device)
 
             # batch_labels: N x VocabularyDim
-            batch_labels = torch.cat([torch.Tensor(x.gt_embedding).unsqueeze_(0) for x in data_points])
+            batch_labels = torch.cat([torch.Tensor(x.gt_embedding).unsqueeze_(0) for x in data_points]).to(device=self.device)
 
             # batch_protected_attributes: N x 1 (?)
-            batch_protected_labels = torch.cat([torch.Tensor(x.protected) for x in data_points])
+            batch_protected_labels = torch.cat([torch.Tensor(x.protected) for x in data_points]).to(device=self.device)
 
 
             # Run the classifier
@@ -189,19 +182,19 @@ class AdversarialDebiasing:
                 adversary_grads = {var: var.grad.clone() for var in self.classifier_vars}
 
             # Optimize the Classifier with the gradients of the classifier and adversary
+            classifier_optimizer.zero_grad()
             pred_labels_loss.backward()
-
-            for classifier_var in self.classifier_vars:
-                grad = classifier_var.grad
-                if self.debias:
-                    unit_adversary_grad = normalize(adversary_grads[classifier_var])
-                    grad -= torch.sum(grad * unit_adversary_grad) * unit_adversary_grad
-                    grad -= self.adversary_loss_weight * adversary_grads[classifier_var]
+            # for classifier_var in self.classifier_vars:
+            if self.debias:
+                unit_adversary_grad = normalize(adversary_grads[self.W1])
+                self.W1.grad -= torch.sum(self.W1.grad * unit_adversary_grad) * unit_adversary_grad
+                self.W1.grad -= self.adversary_loss_weight * adversary_grads[self.W1]
             classifier_optimizer.step()
 
             # Update adversary parameters by the gradient of pred_protected_attributes_loss
             if self.debias:
                 adversary_optimizer.step()
+                pass
 
             self.losses['predictor'].append(pred_labels_loss.item())
 
@@ -224,9 +217,10 @@ class AdversarialDebiasing:
         Returns:
             dataset (BinaryLabelDataset): Transformed dataset.
         """
-        batch_features = torch.cat([torch.Tensor(x).unsqueeze_(0) for x in datapoints])
+        batch_features = torch.cat([torch.Tensor(x).unsqueeze_(0) for x in datapoints]).to(device=self.device)
         predictions = self._classifier_model(batch_features)
-        return predictions.detach().numpy()
+
+        return predictions.detach().cpu().numpy()
 
     def get_model_weights(self):
         return self.W1

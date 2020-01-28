@@ -8,6 +8,12 @@ from torch.nn import functional as F
 from torch.optim import Optimizer, Adam
 import pickle
 
+# Reset seeds
+np.random.seed(42)
+torch.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
+
 from load_data import Datapoint
 
 

@@ -6,6 +6,7 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 from torch.optim import Optimizer, Adam
+import pickle
 
 from load_data import Datapoint
 
@@ -65,6 +66,11 @@ class AdversarialDebiasing:
 
         self.W2 = torch.Tensor(self.word_embedding_dim, 1).to(device=self.device)
         self.W2 = nn.Parameter(nn.init.normal_(self.W2, mean=0.000001, std=0.00001))
+
+        self.val_metric = np.dot(self.W1.T, self.gender_subspace.T)
+        self.best_score = 0
+        self.best_W1 = None
+        self.best_W2 = None
 
         self.classifier_vars = [self.W1]
         self.adversary_vars = [self.W2]
@@ -127,10 +133,10 @@ class AdversarialDebiasing:
             if self.debias:
                 adversary_lr_scheduler.step()
 
-            if epoch % 10 == 0:
-                print(f"||w||: {np.linalg.norm(self.W1.cpu().clone().detach())}")
-                print(f"||w2||: {np.linalg.norm(self.W2.cpu().clone().detach())}")
-                print(f"w.T g: {np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T)}")
+            # if epoch % 10 == 0:
+            #     print(f"||w||: {np.linalg.norm(self.W1.cpu().clone().detach())}")
+            #     print(f"||w2||: {np.linalg.norm(self.W2.cpu().clone().detach())}")
+            #     print(f"w.T g: {np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T)}")
 
         return self
 
@@ -201,12 +207,17 @@ class AdversarialDebiasing:
             if self.debias:
                 self.losses['adversary'].append(pred_protected_loss.item())
 
-            if self.debias and i % 10 == 0:
-                print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
-                    epoch, i, pred_labels_loss.item(), pred_protected_loss.item()))
-            elif i % 200 == 0:
-                print("epoch %d; iter: %d; batch classifier loss: %f" % (
-                    epoch, i, pred_labels_loss.item()))
+            if abs(self.val_metric) > self.best_score:
+                self.best_score = abs(self.val_metric)
+                self.best_W1 = self.W1
+                self.best_W2 = self.W2
+            
+            # if self.debias and i % 10 == 0:
+            #     print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
+            #         epoch, i, pred_labels_loss.item(), pred_protected_loss.item()))
+            # elif i % 200 == 0:
+            #     print("epoch %d; iter: %d; batch classifier loss: %f" % (
+            #         epoch, i, pred_labels_loss.item()))
 
     def predict(self,  datapoints: np.ndarray) -> np.ndarray:
         """Obtain the predictions for the provided dataset using the fair

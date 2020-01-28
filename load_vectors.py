@@ -4,24 +4,30 @@ from gensim.test.utils import datapath, get_tmpfile
 from gensim.models import KeyedVectors
 from gensim.scripts.glove2word2vec import glove2word2vec
 from typing import Dict, List
+import utility_functions
+import gzip
 
-def load_pretrained_vectors(data_path, savedir, savefile, use_glove):
+def load_pretrained_vectors(data_path, savedir, embedding_type):
 
     # If the save directory does not exist
     if not os.path.exists(f'{savedir}'):
         os.makedirs(f'{savedir}')
 
-    if os.path.isfile(savedir + savefile):
+    if os.path.isfile(savedir + embedding_type):
         print("Loading from saved file.")
-        word_vectors = KeyedVectors.load(savedir+savefile)
-    else: 
-        if use_glove:
-            tmp_file = get_tmpfile("toword2vec.txt")
-            _ = glove2word2vec(data_path, tmp_file)
-            data_path = tmp_file
+        word_vectors = KeyedVectors.load(savedir + embedding_type)
+    else:
+        if embedding_type == 'google':
+            with gzip.GzipFile(fileobj=open(data_path, "rb", buffering=0)) as f:
+                word_vectors = utility_functions.load_word2vec_format(f, max_num_words=2000000)
+        else:
+            if embedding_type == 'glove':
+                tmp_file = get_tmpfile("toword2vec.txt")
+                _ = glove2word2vec(data_path, tmp_file)
+                data_path = tmp_file
+            word_vectors = KeyedVectors.load_word2vec_format(data_path, binary=False)
 
-        word_vectors = KeyedVectors.load_word2vec_format(data_path, binary=False)
-        word_vectors.save(savedir+savefile)
+        word_vectors.save(savedir + embedding_type)
 
     return word_vectors
 

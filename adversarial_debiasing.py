@@ -6,6 +6,13 @@ import torch
 from torch import nn, optim
 from torch.nn import functional as F
 from torch.optim import Optimizer, Adam
+import pickle
+
+# Reset seeds
+np.random.seed(42)
+torch.manual_seed(42)
+torch.backends.cudnn.deterministic = True
+torch.backends.cudnn.benchmark = False
 
 from load_data import Datapoint
 
@@ -25,12 +32,14 @@ class AdversarialDebiasing:
 
     def __init__(self,
                  seed=None,
-                 adversary_loss_weight=0.1,
-                 num_epochs=50,
-                 batch_size=128,
-                 classifier_num_hidden_units=200,
+                 adversary_loss_weight=1.0,
+                 num_epochs=500,
+                 batch_size=1000,
                  debias=True,
-                 word_embedding_dim=100):
+                 word_embedding_dim=100,
+                 classifier_learning_rate = 2 ** -16,
+                 adversary_learning_rate = 2 ** -16,
+                 gender_subspace = None):
         """
         Args:
             unprivileged_groups (tuple): Representation for unprivileged groups
@@ -45,28 +54,29 @@ class AdversarialDebiasing:
             debias (bool, optional): Learn a classifier with or without
                 debiasing.
         """
-        # super(AdversarialDebiasing, self).__init__(
-        #     unprivileged_groups=unprivileged_groups,
-        #     privileged_groups=privileged_groups)
         self.seed = seed
 
         self.adversary_loss_weight = adversary_loss_weight
         self.num_epochs = num_epochs
         self.batch_size = int(batch_size)
-        self.classifier_num_hidden_units = classifier_num_hidden_units
         self.debias = debias
         self.word_embedding_dim = word_embedding_dim
+        self.classifier_learning_rate = classifier_learning_rate
+        self.adversary_learning_rate = adversary_learning_rate
+        self.gender_subspace = gender_subspace
 
-        # self.features_ph = None
-        # self.protected_attributes_ph = None
-        # self.true_labels_ph = None
-        # self.pred_labels = None
+        self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-        self.W1 = torch.Tensor(self.word_embedding_dim, 1)
+        self.W1 = torch.Tensor(self.word_embedding_dim, 1).to(device=self.device)
         self.W1 = nn.Parameter(nn.init.xavier_uniform_(self.W1))
 
-        self.W2 = torch.Tensor(self.word_embedding_dim, 1)
-        self.W2 = nn.Parameter(nn.init.xavier_uniform_(self.W2))
+        self.W2 = torch.Tensor(self.word_embedding_dim, 1).to(device=self.device)
+        self.W2 = nn.Parameter(nn.init.normal_(self.W2, mean=0.000001, std=0.00001))
+
+        # self.val_metric = np.dot(self.W1.T, self.gender_subspace.T)
+        self.best_score = 0
+        self.best_W1 = None
+        self.best_W2 = None
 
         self.classifier_vars = [self.W1]
         self.adversary_vars = [self.W2]
@@ -91,9 +101,9 @@ class AdversarialDebiasing:
     def _adversary_model(self, pred_logits):
         """Compute the adversary predictions for the protected attribute.
         """
-        pred_protected_embedding = F.linear(pred_logits, self.W2 @  self.W2.transpose(0, 1))
+        pred_protected = F.linear(pred_logits, self.W2.transpose(0, 1))
 
-        return pred_protected_embedding
+        return pred_protected
 
     def fit(self, dataset: List[Datapoint]):
         """Compute the model parameters of the fair classifier using gradient
@@ -107,12 +117,13 @@ class AdversarialDebiasing:
             np.random.seed(self.seed)
 
         # Obtain classifier predictions and classifier loss
-        starter_learning_rate = 0.001
-        classifier_optimizer = optim.Adam([self.W1], lr=starter_learning_rate)
-        adversary_optimizer = optim.Adam([self.W2], lr=starter_learning_rate)
+        # starter_learning_rate = 0.001
+        classifier_optimizer = optim.Adam([self.W1], lr=self.classifier_learning_rate)
+        adversary_optimizer = optim.Adam([self.W2], lr=self.adversary_learning_rate)
 
         predictor_lr_scheduler = optim.lr_scheduler.ExponentialLR(classifier_optimizer, 0.96)
-        adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96)
+        if self.debias:
+            adversary_lr_scheduler = optim.lr_scheduler.ExponentialLR(adversary_optimizer, 0.96)
 
         num_train_samples = len(dataset)
 
@@ -120,17 +131,23 @@ class AdversarialDebiasing:
             print(f"[{epoch}/{self.num_epochs}] Running epoch")
 
             # All shuffled ids
-            shuffled_ids = np.random.choice(num_train_samples, num_train_samples, replace=False).astype(int)
+            shuffled_ids = np.random.choice(num_train_samples, num_train_samples).astype(int)
 
-            self.train(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
+            self._train_epoch(dataset, shuffled_ids, classifier_optimizer, adversary_optimizer, num_train_samples, epoch)
 
             predictor_lr_scheduler.step()
-            adversary_lr_scheduler.step()
+            if self.debias:
+                adversary_lr_scheduler.step()
+
+            # if epoch % 10 == 0:
+            #     print(f"||w||: {np.linalg.norm(self.W1.cpu().clone().detach())}")
+            #     print(f"||w2||: {np.linalg.norm(self.W2.cpu().clone().detach())}")
+            #     print(f"w.T g: {np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T)}")
 
         return self
 
-    def train(self, dataset: List[Datapoint], shuffled_ids: np.ndarray, classifier_optimizer: Adam, adversary_optimizer: Adam, num_train_samples: int,
-              epoch: int):
+    def _train_epoch(self, dataset: List[Datapoint], shuffled_ids: np.ndarray, classifier_optimizer: Adam, adversary_optimizer: Adam, num_train_samples: int,
+                     epoch: int):
         """ Train the model for one epoch
 
         Args:
@@ -140,63 +157,75 @@ class AdversarialDebiasing:
             num_train_samples:
             epoch:
         """
-        for i in range(math.ceil(num_train_samples // self.batch_size)):
+        for i in range(math.floor(num_train_samples // self.batch_size)):
             batch_ids = shuffled_ids[self.batch_size * i: self.batch_size * (i + 1)].astype(int)
 
             data_points: List[Datapoint] = [dataset[i] for i in batch_ids]
 
-            # Batch of features
             # batch_features: N x (WordEmbeddingDim * 3)
-            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings).unsqueeze_(0) for x in data_points])
+            batch_features = torch.cat([torch.Tensor(x.analogy_embeddings).unsqueeze_(0) for x in data_points]).to(device=self.device)
 
-            # One-hot batch represetnation of a batch of labels
             # batch_labels: N x VocabularyDim
-            # TODO: Batch labels should actually be the one-hot vector of labels of size vocabulary, not gt_embedding
-            batch_labels = torch.cat([torch.Tensor(x.gt_embedding).unsqueeze_(0) for x in data_points])
+            batch_labels = torch.cat([torch.Tensor(x.gt_embedding).unsqueeze_(0) for x in data_points]).to(device=self.device)
 
-            # Batch of protected attributes
             # batch_protected_attributes: N x 1 (?)
-            batch_protected_embeddings = torch.cat([torch.Tensor(x.protected_embedding).unsqueeze_(0) for x in data_points])
+            batch_protected_labels = torch.cat([torch.Tensor(x.protected) for x in data_points]).to(device=self.device)
+
 
             # Run the classifier
             pred_embeddings = self._classifier_model(batch_features)
             pred_labels_loss = F.mse_loss(pred_embeddings, batch_labels)
 
             # Run the adversary
-            pred_protected_embeddings = self._adversary_model(pred_embeddings)
-            pred_protected_embeddings_loss = F.mse_loss(pred_protected_embeddings, batch_protected_embeddings)
+            if self.debias:
+                pred_protected = self._adversary_model(pred_embeddings)
+                pred_protected = pred_protected.squeeze()
+                pred_protected_loss = F.mse_loss(pred_protected, batch_protected_labels)
 
             # Zero the gradients
-            adversary_optimizer.zero_grad()
+            if self.debias:
+                adversary_optimizer.zero_grad()
             classifier_optimizer.zero_grad()
 
             # Calculate the gradients for the adversary
-            pred_protected_embeddings_loss.backward(retain_graph=True)
-            adversary_grads = {var: var.grad for var in self.classifier_vars}
+            if self.debias:
+                # Calculate adversary gradients with respect to W1?
+                pred_protected_loss.backward(retain_graph=True)
+                adversary_grads = {var: var.grad.clone() for var in self.classifier_vars}
 
             # Optimize the Classifier with the gradients of the classifier and adversary
+            classifier_optimizer.zero_grad()
             pred_labels_loss.backward()
-            for classifier_var in self.classifier_vars:
-                grad = classifier_var.grad
-                if self.debias:
-                    unit_adversary_grad = normalize(adversary_grads[classifier_var])
-                    grad -= torch.sum(grad * unit_adversary_grad) * unit_adversary_grad
-                    grad -= self.adversary_loss_weight * adversary_grads[classifier_var]
+            # for classifier_var in self.classifier_vars:
+            if self.debias:
+                unit_adversary_grad = normalize(adversary_grads[self.W1])
+                self.W1.grad -= torch.sum(self.W1.grad * unit_adversary_grad) * unit_adversary_grad
+                self.W1.grad -= self.adversary_loss_weight * adversary_grads[self.W1]
             classifier_optimizer.step()
 
             # Update adversary parameters by the gradient of pred_protected_attributes_loss
             if self.debias:
                 adversary_optimizer.step()
+                pass
 
             self.losses['predictor'].append(pred_labels_loss.item())
-            self.losses['adversary'].append(pred_protected_embeddings_loss.item())
 
-            if self.debias and i % 10 == 0:
-                print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
-                    epoch, i, pred_labels_loss.item(), pred_protected_embeddings_loss.item()))
-            elif i % 10 == 0:
-                print("epoch %d; iter: %d; batch classifier loss: %f" % (
-                    epoch, i, pred_labels_loss.item()))
+            if self.debias:
+                self.losses['adversary'].append(pred_protected_loss.item())
+
+            val_metric = abs(np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T))
+
+            if val_metric > self.best_score:
+                self.best_score = val_metric
+                self.best_W1 = self.W1
+                self.best_W2 = self.W2
+            
+            # if self.debias and i % 10 == 0:
+            #     print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
+            #         epoch, i, pred_labels_loss.item(), pred_protected_loss.item()))
+            # elif i % 200 == 0:
+            #     print("epoch %d; iter: %d; batch classifier loss: %f" % (
+            #         epoch, i, pred_labels_loss.item()))
 
     def predict(self,  datapoints: np.ndarray) -> np.ndarray:
         """Obtain the predictions for the provided dataset using the fair
@@ -207,10 +236,13 @@ class AdversarialDebiasing:
         Returns:
             dataset (BinaryLabelDataset): Transformed dataset.
         """
-        batch_features = torch.cat([torch.Tensor(x).unsqueeze_(0) for x in datapoints])
+        batch_features = torch.cat([torch.Tensor(x).unsqueeze_(0) for x in datapoints]).to(device=self.device)
         predictions = self._classifier_model(batch_features)
-        return predictions.detach().numpy()
 
+        return predictions.detach().cpu().numpy()
+
+    def get_model_weights(self):
+        return self.W1
 
 def normalize(x):
     return x / (torch.norm(x) + np.finfo(np.float32).tiny)

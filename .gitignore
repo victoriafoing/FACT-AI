@@ -4,4 +4,5 @@
 pre-trained\
 data\
 .ipynb_checkpoints\
+__pycache__\
 

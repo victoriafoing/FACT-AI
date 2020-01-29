@@ -8,7 +8,7 @@ import config
 RawDatapoint = namedtuple('Raw_Datapoint', ['x1', 'x2', 'x3', 'y', 'task'])
 
 # Named tuple to store the corresponding embeddings of the analogy words
-Datapoint = namedtuple('Datapoint', ['analogy_embeddings', 'gt_embedding', 'protected_embedding'])
+Datapoint = namedtuple('Datapoint', ['analogy_embeddings', 'gt_embedding', 'protected'])
 
 # Function to load the data from the google analogy text file
 def load_data(path: Path = Path('./data/google-analogies.txt')) -> List[RawDatapoint]:
@@ -26,13 +26,13 @@ def load_data(path: Path = Path('./data/google-analogies.txt')) -> List[RawDatap
     return dataset
 
 # Function to transform the raw data into their corresponding word embeddings
-def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) -> List[Datapoint]:
+def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint], use_boluk : bool = False) -> List[Datapoint]:
     # List to store the transformed datapoints
     transformed_dataset = []
     # Obtaining the gender word pairs
     gender_pairs = obtain_gender_pairs(word_vectors)
     # Obtaining the gender subspace
-    gender_subspace = obtain_gender_subspace(gender_pairs)
+    gender_subspace = obtain_gender_subspace(gender_pairs, use_boluk = use_boluk)
     # For each Raw_Datapoint tuple in the list
     for raw_datapoint in analogy_dataset:
         # Obtaining a list of the corresponding word embeddings
@@ -46,12 +46,12 @@ def transform_data(word_vectors : Dict, analogy_dataset : List[RawDatapoint]) ->
         # Obtaining the embedding corresponding to y
         b = embeddings[3]
         # Obtaining the embedding corresponding to z (protected variable)
-        c = obtain_vector_projection(embeddings[3], gender_subspace)
+        c = b.dot(gender_subspace.T)
         # Temporary transformed datapoint
         temp_datapoint = Datapoint(*[a, b, c])
         # Adding to the list of transformed datapoints
         transformed_dataset.append(temp_datapoint)
     # Returning the list of transformed datapoints
-    return transformed_dataset
+    return transformed_dataset, gender_subspace
         
 

@@ -2,11 +2,12 @@
 from typing import Dict, List, Tuple
 import numpy as np
 from sklearn.decomposition import PCA
-from adversarial_debiasing import AdversarialDebiasing
+# from adversarial_debiasing import AdversarialDebiasing
 from load_vectors import *
 import gensim
 import torch
 import pickle
+from collections import defaultdict
 
 # Function to obtain the male-female gender word pairs
 def obtain_gender_pairs(word_vectors : Dict) -> List[List[List]]:
@@ -164,7 +165,7 @@ def grid_search(learning_rate_list : List[float], adversary_loss_weight_list : L
       non_debiased_model = AdversarialDebiasing(
         seed = 42,
         word_embedding_dim = word_embedding_dim,
-        num_epochs = 5,
+        num_epochs = 500,
         debias = False,
         gender_subspace = gender_subspace,
         batch_size = 256,
@@ -197,7 +198,7 @@ def grid_search(learning_rate_list : List[float], adversary_loss_weight_list : L
       debiased_model = AdversarialDebiasing(
           seed = 42,
           word_embedding_dim = word_embedding_dim,
-          num_epochs = 5,
+          num_epochs = 500,
           debias = True,
           gender_subspace = gender_subspace,
           batch_size = 256,
@@ -222,4 +223,30 @@ def grid_search(learning_rate_list : List[float], adversary_loss_weight_list : L
       # Saving the dictionary
       with open(os.path.join(file_path, 'debiased', "_".join([word_embedding_type, str(learning_rate), str(adversary_loss_weight), 'last']) + '.pckl'), 'wb') as f:
         pickle.dump(last_dict, f)
+  
+# Function to obtain the trained parameters
+def obtain_trained_parameters(file_path : str) -> Dict:
 
+  # Initializing the dictionary
+  pretrained_parameters = defaultdict(lambda : defaultdict(dict))
+
+  # Obtaining the parameters for each model type
+  for model_type in ["non_debiased", "debiased"]:
+
+    # For each saved dictionary in the respective folder
+    for saved_dict_file in os.listdir(os.path.join(file_path, model_type)):
+
+      # Obtaining each component of the file name
+      saved_dict_file_split = saved_dict_file.split('_')
+
+      # Loading the saved dictionary
+      temp_dict = torch.load(os.path.join(file_path, model_type, saved_dict_file))
+      
+      # Setting the corresponding element
+      pretrained_parameters[model_type][saved_dict_file_split[0]]["W1"] = temp_dict["W1"]
+  
+  # Returning the dictionary of saved parameters
+  return pretrained_parameters
+    
+
+    

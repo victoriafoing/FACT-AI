@@ -73,10 +73,9 @@ class AdversarialDebiasing:
         self.W2 = torch.Tensor(self.word_embedding_dim, 1).to(device=self.device)
         self.W2 = nn.Parameter(nn.init.normal_(self.W2, mean=0.000001, std=0.00001))
 
-        # self.val_metric = np.dot(self.W1.T, self.gender_subspace.T)
         self.best_score = 0
-        self.best_W1 = None
-        self.best_W2 = None
+        self.best_W1 = self.W1.clone()
+        self.best_W2 = self.W2.clone()
 
         self.classifier_vars = [self.W1]
         self.adversary_vars = [self.W2]
@@ -217,8 +216,8 @@ class AdversarialDebiasing:
 
             if val_metric > self.best_score:
                 self.best_score = val_metric
-                self.best_W1 = self.W1
-                self.best_W2 = self.W2
+                self.best_W1 = self.W1.clone()
+                self.best_W2 = self.W2.clone()
             
             # if self.debias and i % 10 == 0:
             #     print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (

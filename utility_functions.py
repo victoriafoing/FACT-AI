@@ -2,8 +2,11 @@
 from typing import Dict, List, Tuple
 import numpy as np
 from sklearn.decomposition import PCA
+from adversarial_debiasing import AdversarialDebiasing
 from load_vectors import *
 import gensim
+import torch
+import pickle
 
 # Function to obtain the male-female gender word pairs
 def obtain_gender_pairs(word_vectors : Dict) -> List[List[List]]:
@@ -136,3 +139,86 @@ def load_word2vec_format(f, max_num_words=None):
 
   print("loaded %s matrix", result.syn0.shape)
   return result
+
+# Function to reset the seeds
+def reset_seeds(seed : int = 42) -> None:
+  np.random.seed(seed)
+  torch.manual_seed(seed)
+  torch.backends.cudnn.deterministic = True
+  torch.backends.cudnn.benchmark = False
+
+# Function to perform grid search
+def grid_search(learning_rate_list : List[float], adversary_loss_weight_list : List[float], \
+  word_embedding_dim : int, gender_subspace : np.ndarray, transformed_analogy_dataset, word_embedding_type : str, file_path : str) -> None:
+
+  # For each learning rate in the list
+  for learning_rate in learning_rate_list:
+
+    # For each adversary loss weight (alpha) in the list
+    for adversary_loss_weight in adversary_loss_weight_list:
+
+      # Reset seeds
+      reset_seeds()
+
+      # Creating an instance of the non-debiased model with the intended configuration
+      non_debiased_model = AdversarialDebiasing(
+        seed = 42,
+        word_embedding_dim = word_embedding_dim,
+        num_epochs = 5,
+        debias = False,
+        gender_subspace = gender_subspace,
+        batch_size = 256,
+        adversary_loss_weight = adversary_loss_weight,
+        classifier_learning_rate = learning_rate,
+        adversary_learning_rate = learning_rate
+      )
+
+      # Fitting to the dataset and training the non-debiased model
+      non_debiased_model.fit(dataset = transformed_analogy_dataset)
+
+      # Dictionary for storing the best weights of the non-debiased model
+      best_dict = {"W1" : non_debiased_model.best_W1, "W2" : non_debiased_model.best_W2}
+      
+      # Saving the dictionary
+      with open(os.path.join(file_path, 'non_debiased', "_".join([word_embedding_type, str(learning_rate), str(adversary_loss_weight), 'best']) + '.pckl'), 'wb') as f:
+        pickle.dump(best_dict, f)
+
+      # Dictionary for saving the final weights of the non-debiased model  
+      last_dict = {"W1" : non_debiased_model.W1, "W2" : non_debiased_model.W2}
+
+      # Saving the dictionary
+      with open(os.path.join(file_path, 'non_debiased', "_".join([word_embedding_type, str(learning_rate), str(adversary_loss_weight), 'last']) + '.pckl'), 'wb') as f:
+        pickle.dump(last_dict, f)
+
+      # Reset seeds
+      reset_seeds()
+        
+      # Creating an instance of the debiased model with the intended configuration
+      debiased_model = AdversarialDebiasing(
+          seed = 42,
+          word_embedding_dim = word_embedding_dim,
+          num_epochs = 5,
+          debias = True,
+          gender_subspace = gender_subspace,
+          batch_size = 256,
+          adversary_loss_weight = adversary_loss_weight,
+          classifier_learning_rate = learning_rate,
+          adversary_learning_rate = learning_rate
+      )
+
+      # Fitting to the dataset and training the debiased model
+      debiased_model.fit(dataset = transformed_analogy_dataset)
+
+      # Dictionary for storing the best weights of the debiased model
+      best_dict = {"W1" : debiased_model.best_W1, "W2" : debiased_model.best_W2}
+      
+      # Saving the dictionary
+      with open(os.path.join(file_path, 'debiased', "_".join([word_embedding_type, str(learning_rate), str(adversary_loss_weight), 'best']) + '.pckl'), 'wb') as f:
+        pickle.dump(best_dict, f)
+
+      # Dictionary for saving the final weights of the debiased model  
+      last_dict = {"W1" : debiased_model.W1, "W2" : debiased_model.W2}
+
+      # Saving the dictionary
+      with open(os.path.join(file_path, 'debiased', "_".join([word_embedding_type, str(learning_rate), str(adversary_loss_weight), 'last']) + '.pckl'), 'wb') as f:
+        pickle.dump(last_dict, f)

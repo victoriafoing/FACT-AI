@@ -9,7 +9,7 @@ Gaurav Kudva (12205583, gauravkudva2@gmail.com)
 
 ## TA
 
-Leon Lang
+Leon Lang (leon.lang@student.uva.nl)
 
 ## Installation
 

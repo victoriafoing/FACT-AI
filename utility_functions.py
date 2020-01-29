@@ -222,3 +222,4 @@ def grid_search(learning_rate_list : List[float], adversary_loss_weight_list : L
       # Saving the dictionary
       with open(os.path.join(file_path, 'debiased', "_".join([word_embedding_type, str(learning_rate), str(adversary_loss_weight), 'last']) + '.pckl'), 'wb') as f:
         pickle.dump(last_dict, f)
+

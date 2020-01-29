@@ -1,15 +1,15 @@
 # Adverserial Debiasing
 
-## TODO:
+## Authors:
 
-- [ ] Demo notebook
-- [ ] Training Code
-- [ ] Word embeddings code
-- [ ] Training with different embeddings
-- [ ] Evaluation code
-- [ ] Gender subspace code
-- [ ] Create a conda env / installation instructions
-- [ ] Usage instructions
+Rochelle Choenni (10999949, rmvk97@gmail.com)
+Maximilian Filtenborg (11042729, max.filtenborg@gmail.com)
+Victoria Foing (11773391, vickyfoing@gmail.com)
+Gaurav Kudva (12205583, gauravkudva2@gmail.com)
+
+## TA
+
+Leon Lang
 
 ## Installation
 
@@ -24,7 +24,6 @@ And activate the environment:
 Update your environment later (after activating it):
 
     $ conda env update --file environment.yml
-
 
 Update the env after installing a package:
 

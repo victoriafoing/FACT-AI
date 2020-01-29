@@ -9,6 +9,8 @@ import wget
 
 
 def load_pretrained_vectors(embedding_type):
+    assert embedding_type in ("GoogleNews", "Glove", "Wikipedia"), "Invalid embedding type selected."
+
 
     wiki_data_path = "data/enwiki_20180420_300d.txt"
     google_data_path = "data/GoogleNews-vectors-negative300.bin.gz"
@@ -64,7 +66,7 @@ def load_vectors(word_vectors : Dict, data_point : List) -> List[List]:
 # Example: 
 # Wikipedia
 #vectors = load_vectors("data/enwiki_20180420_win10_100d.txt/data", "pre-trained/", "wikipedia", ['athens', 'greece'])
-#load_pretrained_vectors("Glove")
+load_pretrained_vectors("Go")
 # GloVe
 #vectors = load_vectors("data/glove.twitter.27B.100d.txt", "pre-trained/", "glove", ['athens', 'greece'], True)
 #print(vectors)

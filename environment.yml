@@ -3,13 +3,14 @@ channels:
   - defaults
 dependencies:
   - python=3.7
-  - pytorch
   - ipykernel
   - tornado
+  - pytorch
   - pandas
   - scikit-learn
-  - matplotlib
   - gensim
   - jupyter
-prefix: /home/max/anaconda3/envs/fact
+  - pylint
+  - tabulate
+prefix: C:\Users\gaura\Anaconda3\envs\fact
 

@@ -1,4 +1,4 @@
-# Adversarial Debiasing
+# Gender Debiasing with Adversarial Learning
 This repository contains the PyTorch implementation of the **Word Embeddings** experiment as proposed in the paper *"Mitigating Unwanted Biases with Adversarial Learning"*, B. H. Zhang, B. Lemoine, and M. Mitchell, AAAI/ACM Conference on Artificial Intelligence, Ethics, and Society, 2018 [[link](https://arxiv.org/abs/1801.07593)].
 
 The paper proposes an adversarial learning technique to mitigate the effect of biases generally present in the training data and the **Word Embeddings** experiment focuses on removing gender bias from word embeddings.

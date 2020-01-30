@@ -42,17 +42,17 @@ class AdversarialDebiasing:
                  gender_subspace = None):
         """
         Args:
-            unprivileged_groups (tuple): Representation for unprivileged groups
-            privileged_groups (tuple): Representation for privileged groups
             seed (int, optional): Seed to make `predict` repeatable.
             adversary_loss_weight (float, optional): Hyperparameter that chooses
                 the strength of the adversarial loss.
             num_epochs (int, optional): Number of training epochs.
             batch_size (int, optional): Batch size.
-            classifier_num_hidden_units (int, optional): Number of hidden units
-                in the classifier model.
             debias (bool, optional): Learn a classifier with or without
                 debiasing.
+            word_embedding_dim: Dimensionality of the word embeddings
+            classifier_learning_rate: Learning rate for the predictor model
+            adversary_learning_rate: Learning rate for the adversary model
+            gender_subspace: Unit vector(s) spanning the gender direction
         """
         self.seed = seed
 
@@ -108,7 +108,7 @@ class AdversarialDebiasing:
         """Compute the model parameters of the fair classifier using gradient
         descent.
         Args:
-            dataset (BinaryLabelDataset): Dataset containing true labels.
+            dataset: Dataset containing true labels.
         Returns:
             AdversarialDebiasing: Returns self.
         """
@@ -150,11 +150,12 @@ class AdversarialDebiasing:
         """ Train the model for one epoch
 
         Args:
-            dataset:
-            shuffled_ids:
-            optimizer:
-            num_train_samples:
-            epoch:
+            dataset: The training dataset containing true labels
+            shuffled_ids: Shuffled IDs of the training samples
+            classifier_optimizer: Type of optimizer for the predictor model
+            adversary_optimizer: Type of optimizer for the adversary model
+            num_train_samples: Number of training samples
+            epoch: The epoch number
         """
         for i in range(math.floor(num_train_samples // self.batch_size)):
             batch_ids = shuffled_ids[self.batch_size * i: self.batch_size * (i + 1)].astype(int)
@@ -230,10 +231,10 @@ class AdversarialDebiasing:
         """Obtain the predictions for the provided dataset using the fair
         classifier learned.
         Args:
-            dataset (BinaryLabelDataset): Dataset containing labels that needs
-                to be transformed.
+            dataset: Dataset containing incomplete analogies that need
+                to be predicted.
         Returns:
-            dataset (BinaryLabelDataset): Transformed dataset.
+            predictions: Predictions pertaining to the incomplete analogies.
         """
         batch_features = torch.cat([torch.Tensor(x).unsqueeze_(0) for x in datapoints]).to(device=self.device)
         predictions = self._classifier_model(batch_features)

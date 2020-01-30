@@ -138,10 +138,10 @@ class AdversarialDebiasing:
             if self.debias:
                 adversary_lr_scheduler.step()
 
-            # if epoch % 10 == 0:
-            #     print(f"||w||: {np.linalg.norm(self.W1.cpu().clone().detach())}")
-            #     print(f"||w2||: {np.linalg.norm(self.W2.cpu().clone().detach())}")
-            #     print(f"w.T g: {np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T)}")
+            if epoch % 10 == 0:
+                print(f"||w||: {np.linalg.norm(self.W1.cpu().clone().detach())}")
+                print(f"||w2||: {np.linalg.norm(self.W2.cpu().clone().detach())}")
+                print(f"w.T g: {np.dot(self.W1.clone().detach().cpu().numpy().T, self.gender_subspace.T)}")
 
         return self
 
@@ -219,12 +219,12 @@ class AdversarialDebiasing:
                 self.best_W1 = self.W1.clone()
                 self.best_W2 = self.W2.clone()
             
-            # if self.debias and i % 10 == 0:
-            #     print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
-            #         epoch, i, pred_labels_loss.item(), pred_protected_loss.item()))
-            # elif i % 200 == 0:
-            #     print("epoch %d; iter: %d; batch classifier loss: %f" % (
-            #         epoch, i, pred_labels_loss.item()))
+            if self.debias and i % 10 == 0:
+                print("epoch %d; iter: %d; batch classifier loss: %f; batch adversarial loss: %f" % (
+                    epoch, i, pred_labels_loss.item(), pred_protected_loss.item()))
+            elif i % 200 == 0:
+                print("epoch %d; iter: %d; batch classifier loss: %f" % (
+                    epoch, i, pred_labels_loss.item()))
 
     def predict(self,  datapoints: np.ndarray) -> np.ndarray:
         """Obtain the predictions for the provided dataset using the fair

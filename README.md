@@ -1,4 +1,4 @@
-# Adverserial Debiasing
+# Adversarial Debiasing
 
 ## Authors:
 

@@ -3,8 +3,11 @@
 ## Authors:
 
 Rochelle Choenni (10999949, rmvk97@gmail.com)
+<br />
 Maximilian Filtenborg (11042729, max.filtenborg@gmail.com)
+<br />
 Victoria Foing (11773391, vickyfoing@gmail.com)
+<br />
 Gaurav Kudva (12205583, gauravkudva2@gmail.com)
 
 ## TA

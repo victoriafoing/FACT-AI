@@ -3,7 +3,21 @@ This repository contains the PyTorch implementation of the **Word Embeddings** e
 
 The paper proposes an adversarial learning technique to mitigate the effect of biases generally present in the training data and the **Word Embeddings** experiment focuses on removing gender bias from word embeddings.
 
-Further extensions have been made to the above experiment by testing the proposed technique on word embeddings trained on different domain data namely, *Wikipedia2Vec* and *Glove* in addition to *Word2Vec / GoogleNews* (that was originally used in the paper). Qualitative and quantitative evaluations have been made on the same and the results are summarized here as follows.
+Further extensions have been made to the above experiment by testing the proposed technique on word embeddings trained on different domain data namely, *Wikipedia2Vec* and *Glove* in addition to *Word2Vec / GoogleNews* (that was originally used in the paper) along with qualitative and quantitative evaluations. For example, the effect of applying the debiasing technique on our model trained on GloVe embeddings can be seen below for the test analogy 
+
+**he : director :: she : ?**
+
+|Biased Neighbour| Biased Similarity|Debiased Neighbour | Debiased Similarity|
+| -------------- | ---------------- | ----------------- | ------------------ |
+|    assistant   |       0.642      |    co-director    |      0.571         |
+|     julie      |       0.635      |    co-artistic    |      0.483         | 
+|    executive   |       0.629      | president/creative|      0.474         |
+|   coordinator  |       0.625      |   co-ordinator    |      0.468         |
+|    associate   |       0.623      |    chairwoman     |      0.463         |
+|     susan      |       0.616      |      debra        |      0.458         |
+|   directors    |       0.608      |    coordinator    |      0.453         |
+|    jennifer    |       0.605      |   choreographer   |      0.452         |
+|    directed    |       0.599      |     kathryn       |      0.450         |
 
 ## Authors
 

@@ -8,7 +8,7 @@ import os
 # Examples to test the models upon
 def get_datapoints(word_vectors):
     datapoints, test_analogies = [], []
-    with open(os.path.join('data', 'sexism-traps.txt'), 'r') as f:
+    with open(os.path.join('data', 'sexism-traps-1.txt'), 'r') as f:
         # Reading each line
         for line in f.readlines():
             words = line.split()

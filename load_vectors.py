@@ -13,7 +13,7 @@ def load_pretrained_vectors(embedding_type):
     assert embedding_type in ("GoogleNews", "Glove", "Wikipedia2Vec"), "Invalid embedding type selected."
 
 
-    wiki_data_path = os.path.join("data", "enwiki_20180420_300d.txt.bz2")
+    wiki_data_path = os.path.join("data", "enwiki_20180420_win10_300d.txt.bz2")
     google_data_path = os.path.join("data", "GoogleNews-vectors-negative300.bin.gz")
     glove_data_path = os.path.join("data", "glove.42B.300d.zip")
     
@@ -47,7 +47,7 @@ def load_pretrained_vectors(embedding_type):
             tmp_file = get_tmpfile("toword2vec.txt")
             _ = glove2word2vec(glove_temp_path, tmp_file)
             data_path = tmp_file
-            word_vectors = KeyedVectors.load_word2vec_format(data_path, binary = False, limit = 2000000)
+            word_vectors = KeyedVectors.load_word2vec_format(data_path, binary = False)
 
             # with gzip.GzipFile(fileobj=open(glove_data_path, "rb", buffering=0)) as f:
             #     tmp_file = get_tmpfile("toword2vec.txt")
@@ -58,11 +58,11 @@ def load_pretrained_vectors(embedding_type):
         elif embedding_type == 'Wikipedia2Vec':
             if not os.path.isfile(wiki_data_path):
                 print("Downloading vectors..")
-                wget.download("http://wikipedia2vec.s3.amazonaws.com/models/en/2018-04-20/enwiki_20180420_300d.txt.bz2", out="data")
+                wget.download("http://wikipedia2vec.s3.amazonaws.com/models/en/2018-04-20/enwiki_20180420_win10_300d.txt.bz2", out="data")
 
             with gzip.GzipFile(fileobj=open(wiki_data_path, "rb", buffering=0)) as f:
                 print("Retrieving vectors..")
-                word_vectors = KeyedVectors.load_word2vec_format(wiki_data_path, binary=False, limit = 2000000)
+                word_vectors = KeyedVectors.load_word2vec_format(wiki_data_path, binary=False)
 
         word_vectors.save(os.path.join('data', embedding_type + '_pre-trained'))
 
